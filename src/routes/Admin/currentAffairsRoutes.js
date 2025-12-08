@@ -35,6 +35,13 @@ const {
   getLocalCurrentAffairById,
   updateLocalCurrentAffair,
   deleteLocalCurrentAffair,
+  // Filter helpers
+  getCategoriesWithCurrentAffairs,
+  getSubCategoriesAndLanguagesByCategory,
+  getSubCategoriesByCategory,
+  getSubCategoriesByLanguage,
+  getFilteredCurrentAffairs,
+  getAvailableAffairTypes
 } = require('../../controllers/Admin/currentAffairsController');
 const adminAuthMiddleware = require('../../middlewares/Admin/authMiddleware');
 const upload = require('../../middlewares/uploadMiddleware');
@@ -154,5 +161,24 @@ router.put(
   updateLocalCurrentAffair
 );
 router.delete('/local/:id', deleteLocalCurrentAffair);
+
+// -------- Filter Helper Routes --------
+// Step 1: Get all categories with current affairs
+router.get('/categories', getCategoriesWithCurrentAffairs);
+
+// Step 2: Get subcategories and languages by category
+router.get('/categories/:categoryId/details', getSubCategoriesAndLanguagesByCategory);
+
+// Step 2b: Get subcategories for a category (defaults to English)
+router.get('/categories/:categoryId/subcategories-default', getSubCategoriesByCategory);
+
+// Step 2c: Get subcategories filtered by selected language
+router.get('/categories/:categoryId/subcategories', getSubCategoriesByLanguage);
+
+// Step 3: Get filtered current affairs
+router.get('/affairs', getFilteredCurrentAffairs);
+
+// Get available affair types
+router.get('/types', getAvailableAffairTypes);
 
 module.exports = router;
