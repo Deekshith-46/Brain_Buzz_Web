@@ -97,6 +97,9 @@ const testSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    resultPublishTime: {
+      type: Date,
+    },
     sections: [sectionSchema],
   },
   { _id: true }

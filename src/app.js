@@ -17,6 +17,8 @@ const adminEBookRoutes = require('./routes/Admin/eBookRoutes');
 const adminDailyQuizRoutes = require('./routes/Admin/dailyQuizRoutes');
 const adminCurrentAffairsRoutes = require('./routes/Admin/currentAffairsRoutes');
 const adminTestSeriesRoutes = require('./routes/Admin/testSeriesRoutes');
+const adminTestAttemptRoutes = require('./routes/Admin/testAttemptRoutes');
+const adminLiveClassRoutes = require('./routes/Admin/liveClassRoutes');
 const userRoutes = require('./routes/User/userRoutes');
 const userAuthRoutes = require('./routes/User/authRoutes');
 const userPublicationRoutes = require('./routes/User/publicationRoutes');
@@ -25,6 +27,8 @@ const userEBookRoutes = require('./routes/User/eBookRoutes');
 const userDailyQuizRoutes = require('./routes/User/dailyQuizRoutes');
 const currentAffairsRoutes = require('./routes/User/currentAffairsRoutes');
 const userTestSeriesRoutes = require('./routes/User/testSeriesRoutes');
+const userTestAttemptRoutes = require('./routes/User/testAttemptRoutes');
+const userLiveClassRoutes = require('./routes/User/liveClassRoutes');
 const adminOrderRoutes = require('./routes/Admin/orderRoutes');
 
 const adminCouponRoutes = require('./routes/Admin/couponRoutes');
@@ -55,6 +59,8 @@ app.use('/api/admin/ebooks', adminEBookRoutes);
 app.use('/api/admin/daily-quizzes', adminDailyQuizRoutes);
 app.use('/api/admin/current-affairs', adminCurrentAffairsRoutes);
 app.use('/api/admin/test-series', adminTestSeriesRoutes);
+app.use('/api/admin/test-attempts', adminTestAttemptRoutes);
+app.use('/api/admin/live-classes', adminLiveClassRoutes);
 app.use('/api/v1/admin/coupons', adminCouponRoutes);
 // And in your route middleware section, add:
 app.use('/api/admin/orders', adminOrderRoutes);
@@ -67,6 +73,8 @@ app.use('/api/users', userEBookRoutes);
 app.use('/api/users', userDailyQuizRoutes);
 app.use('/api/v1', currentAffairsRoutes);
 app.use('/api/v1/test-series', userTestSeriesRoutes);
+app.use('/api/v1/test-attempts', userTestAttemptRoutes);
+app.use('/api/v1/live-classes', userLiveClassRoutes);
 // User routes
 app.use('/api/v1/coupons', userCouponRoutes);
 app.use('/api/payment', paymentRoutes);
