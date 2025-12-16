@@ -11,6 +11,10 @@ const purchaseItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     refPath: 'items.itemType'
+  },
+  contentType: {
+    type: String,
+    required: true
   }
 }, { _id: false });
 

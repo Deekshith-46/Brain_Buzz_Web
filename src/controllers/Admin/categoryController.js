@@ -26,17 +26,21 @@ const uploadToCloudinary = (fileBuffer, folder) => {
 
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, isActive } = req.body;
+    const { name, description, isActive, contentType } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: 'Name is required' });
     }
 
+    if (!contentType) {
+      return res.status(400).json({ message: 'Content type is required' });
+    }
+
     const slug = slugify(name);
 
-    const existing = await Category.findOne({ slug });
+    const existing = await Category.findOne({ slug, contentType });
     if (existing) {
-      return res.status(400).json({ message: 'Category with this name already exists' });
+      return res.status(400).json({ message: 'Category with this name already exists for this content type' });
     }
 
     let thumbnailUrl;
@@ -53,6 +57,7 @@ exports.createCategory = async (req, res) => {
       slug,
       description,
       isActive,
+      contentType,
       thumbnailUrl,
     });
 
@@ -68,7 +73,23 @@ exports.createCategory = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find();
+    const { contentType, isActive } = req.query;
+    
+    // Require contentType parameter
+    if (!contentType) {
+      return res.status(400).json({
+        message: 'contentType is required'
+      });
+    }
+    
+    const filter = { contentType };
+    
+    // Filter by isActive if provided
+    if (typeof isActive !== 'undefined') {
+      filter.isActive = isActive === 'true';
+    }
+    
+    const categories = await Category.find(filter);
     return res.status(200).json({ data: categories });
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -95,15 +116,20 @@ exports.getCategoryById = async (req, res) => {
 exports.updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, isActive } = req.body;
+    const { name, description, isActive, contentType } = req.body;
 
-    const updates = { description, isActive };
+    const updates = {};
+
+    if (typeof description !== 'undefined') updates.description = description;
+    if (typeof isActive !== 'undefined') updates.isActive = isActive;
 
     if (name) {
       const slug = slugify(name);
-      const existing = await Category.findOne({ slug, _id: { $ne: id } });
+      
+      // Check if another category with same name and content type exists
+      const existing = await Category.findOne({ slug, contentType, _id: { $ne: id } });
       if (existing) {
-        return res.status(400).json({ message: 'Category with this name already exists' });
+        return res.status(400).json({ message: 'Category with this name already exists for this content type' });
       }
       updates.name = name;
       updates.slug = slug;
@@ -140,14 +166,44 @@ exports.deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const category = await Category.findByIdAndDelete(id);
+    const category = await Category.findByIdAndUpdate(
+      id,
+      { isActive: false },
+      { new: true }
+    );
+    
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });
     }
 
-    return res.status(200).json({ message: 'Category deleted successfully' });
+    return res.status(200).json({ message: 'Category deactivated successfully' });
   } catch (error) {
     console.error('Error deleting category:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.toggleCategoryStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const category = await Category.findByIdAndUpdate(
+      id,
+      { isActive },
+      { new: true }
+    );
+
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    return res.status(200).json({
+      message: `Category ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: category,
+    });
+  } catch (error) {
+    console.error('Error toggling category status:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

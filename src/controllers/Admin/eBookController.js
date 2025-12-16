@@ -132,79 +132,176 @@ exports.getEBookById = async (req, res) => {
   }
 };
 
-// Admin: update e-book
+// Main PATCH route for simple fields only
+const ALLOWED_FIELDS = [
+  'name',
+  'startDate',
+  'description',
+  'isActive'
+];
+
 exports.updateEBook = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    if (!req.body.ebook) {
-      return res
-        .status(400)
-        .json({ message: 'E-Book data (ebook) is required in form-data' });
-    }
-
-    const parsed = JSON.parse(req.body.ebook);
-
-    const {
-      name,
-      startDate,
-      categoryIds,
-      subCategoryIds,
-      languageIds,
-      description,
-      isActive,
-    } = parsed;
-
     const updates = {};
 
-    if (name) updates.name = name;
-    if (startDate) updates.startDate = startDate;
-    if (categoryIds) updates.categories = categoryIds;
-    if (subCategoryIds) updates.subCategories = subCategoryIds;
-    if (languageIds) updates.languages = languageIds;
-    if (typeof description !== 'undefined') updates.description = description;
-    if (typeof isActive !== 'undefined') updates.isActive = isActive;
-
-    // Thumbnail
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/ebooks/thumbnails',
-        'image'
-      );
-      updates.thumbnailUrl = uploadResult.secure_url;
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        // Special handling for startDate to ensure proper Date conversion
+        if (field === 'startDate' && req.body[field]) {
+          // Handle different date formats
+          let dateValue;
+          if (req.body[field].includes('T')) {
+            // ISO format already
+            dateValue = new Date(req.body[field]);
+          } else {
+            // For YYYY-MM-DD format from frontend date pickers
+            dateValue = new Date(req.body[field]);
+          }
+          
+          // Normalize to UTC midnight for date-only fields
+          // This ensures consistent date handling regardless of client timezone
+          // and prevents date shifting when converting between timezones
+          if (!isNaN(dateValue.getTime())) {
+            dateValue.setUTCHours(0, 0, 0, 0);
+            updates[field] = dateValue;
+          }
+        } else {
+          updates[field] = req.body[field];
+        }
+      }
     }
 
-    // Book file
-    if (req.files && req.files.bookFile && req.files.bookFile[0]) {
-      const bookFile = req.files.bookFile[0];
-      const uploadResult = await uploadToCloudinary(
-        bookFile.buffer,
-        'brainbuzz/ebooks/books',
-        'raw'
-      );
-      updates.bookFileUrl = uploadResult.secure_url;
+    // Check if we have any updates
+    if (Object.keys(updates).length === 0) {
+      const ebook = await EBook.findById(req.params.id)
+        .populate('categories subCategories languages');
+      
+      if (!ebook) {
+        return res.status(404).json({ message: 'E-Book not found' });
+      }
+      
+      return res.json({
+        message: 'No changes detected',
+        data: ebook
+      });
     }
 
-    const ebook = await EBook.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    })
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
-      .populate('languages', 'name code');
+    const ebook = await EBook.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).populate('categories subCategories languages');
 
     if (!ebook) {
       return res.status(404).json({ message: 'E-Book not found' });
     }
 
-    return res.status(200).json({
+    return res.json({
       message: 'E-Book updated successfully',
-      data: ebook,
+      data: ebook
     });
   } catch (error) {
     console.error('Error updating E-Book:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update book file
+exports.updateBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Book file is required' });
+    }
+
+    const uploadResult = await uploadToCloudinary(
+      req.file.buffer,
+      'brainbuzz/ebooks/books',
+      'raw'
+    );
+
+    const ebook = await EBook.findByIdAndUpdate(
+      id,
+      { bookFileUrl: uploadResult.secure_url },
+      { new: true }
+    ).populate('categories subCategories languages');
+
+    if (!ebook) {
+      return res.status(404).json({ message: 'E-Book not found' });
+    }
+
+    return res.json({
+      message: 'Book updated successfully',
+      data: ebook
+    });
+  } catch (error) {
+    console.error('Error updating book:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update thumbnail
+exports.updateThumbnail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Thumbnail file is required' });
+    }
+
+    const uploadResult = await uploadToCloudinary(
+      req.file.buffer,
+      'brainbuzz/ebooks/thumbnails',
+      'image'
+    );
+
+    const ebook = await EBook.findByIdAndUpdate(
+      id,
+      { thumbnailUrl: uploadResult.secure_url },
+      { new: true }
+    ).populate('categories subCategories languages');
+
+    if (!ebook) {
+      return res.status(404).json({ message: 'E-Book not found' });
+    }
+
+    return res.json({
+      message: 'Thumbnail updated successfully',
+      data: ebook
+    });
+  } catch (error) {
+    console.error('Error updating thumbnail:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update categories and subcategories
+exports.updateCategories = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { categories, subCategories } = req.body;
+
+    const updates = {};
+    if (categories !== undefined) updates.categories = categories;
+    if (subCategories !== undefined) updates.subCategories = subCategories;
+
+    const ebook = await EBook.findByIdAndUpdate(
+      id,
+      updates,
+      { new: true }
+    ).populate('categories subCategories languages');
+
+    if (!ebook) {
+      return res.status(404).json({ message: 'E-Book not found' });
+    }
+
+    return res.json({
+      message: 'Categories updated successfully',
+      data: ebook
+    });
+  } catch (error) {
+    console.error('Error updating categories:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

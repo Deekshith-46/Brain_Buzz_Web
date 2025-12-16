@@ -25,6 +25,19 @@ const subCategorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    contentType: {
+      type: String,
+      enum: [
+        'ONLINE_COURSE',
+        'TEST_SERIES',
+        'DAILY_QUIZ',
+        'LIVE_CLASS',
+        'PUBLICATION',
+        'E_BOOK',
+        'CURRENT_AFFAIRS'
+      ],
+      required: true
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -35,6 +48,10 @@ const subCategorySchema = new mongoose.Schema(
   }
 );
 
-subCategorySchema.index({ category: 1, name: 1 }, { unique: true });
+// Create unique index for slug + category + contentType combination
+subCategorySchema.index(
+  { slug: 1, category: 1, contentType: 1 },
+  { unique: true }
+);
 
 module.exports = mongoose.model('SubCategory', subCategorySchema);

@@ -6,6 +6,7 @@ exports.listEBooks = async (req, res) => {
     const { category, subCategory, language } = req.query;
 
     const filter = {
+      contentType: 'E_BOOK',
       isActive: true,
     };
 
@@ -32,6 +33,7 @@ exports.getEBookById = async (req, res) => {
 
     const ebook = await EBook.findOne({
       _id: id,
+      contentType: 'E_BOOK',
       isActive: true,
     })
       .populate('categories', 'name slug')

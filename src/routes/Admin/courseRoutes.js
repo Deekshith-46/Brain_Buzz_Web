@@ -16,6 +16,10 @@ const {
   updateClass,
   deleteClass,
   deleteStudyMaterial,
+  publishCourse,
+  uploadClassMedia,
+  updateCourseDescriptions,
+  createFullCourse
 } = require('../../controllers/Admin/courseController');
 const adminAuthMiddleware = require('../../middlewares/Admin/authMiddleware');
 const upload = require('../../middlewares/uploadMiddleware');
@@ -25,8 +29,8 @@ const router = express.Router();
 router.use(adminAuthMiddleware);
 
 // Clean professional routes
-router.post('/', createCourseShell); // create shell
-router.put('/:id', updateCourseShell); // update shell
+router.post('/', upload.fields([{ name: 'thumbnail', maxCount: 1 }]), createCourseShell); // create shell
+router.put('/:id', upload.none(), updateCourseShell); // update shell
 router.put(
   '/:id/basics',
   upload.fields([{ name: 'thumbnail', maxCount: 1 }]),
@@ -36,6 +40,10 @@ router.put(
   '/:id/content',
   upload.fields([{ name: 'studyMaterialFiles', maxCount: 50 }]),
   updateCourseContent
+);
+router.put(
+  '/:id/descriptions',
+  updateCourseDescriptions
 );
 router.delete('/:id/study-materials/:materialId', deleteStudyMaterial);
 router.post(
@@ -67,7 +75,17 @@ router.put(
   ]),
   updateClass
 );
+router.put(
+  '/:id/classes/:classId/media',
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'lecturePhoto', maxCount: 1 },
+    { name: 'video', maxCount: 1 },
+  ]),
+  uploadClassMedia
+);
 router.delete('/:id/classes/:classId', deleteClass);
+router.patch('/:id/publish', publishCourse);
 
 // Legacy all-in-one create/update if needed
 router.post(
@@ -83,10 +101,25 @@ router.post(
   createCourse
 );
 
+// New endpoint for creating a complete course in one API call
+router.post(
+  '/full',
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'tutorImages', maxCount: 10 },
+    { name: 'classThumbnails', maxCount: 50 },
+    { name: 'classLecturePics', maxCount: 50 },
+    { name: 'classVideos', maxCount: 50 },
+    { name: 'studyMaterialFiles', maxCount: 50 },
+  ]),
+  createFullCourse
+);
+
 router.get('/', getCourses);
 router.get('/:id', getCourseById);
 
-router.put(
+// SOLUTION 2: Change to PATCH for partial updates (better REST practice)
+router.patch(
   '/:id/all-in-one',
   upload.fields([
     { name: 'thumbnail', maxCount: 1 },
@@ -100,15 +133,5 @@ router.put(
 );
 
 router.delete('/:id', deleteCourse);
-
-router.post(
-  '/:id/classes',
-  upload.fields([
-    { name: 'classThumbnails', maxCount: 50 },
-    { name: 'classLecturePics', maxCount: 50 },
-    { name: 'classVideos', maxCount: 50 },
-  ]),
-  addClassesToCourse
-);
 
 module.exports = router;

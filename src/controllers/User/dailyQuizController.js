@@ -6,6 +6,7 @@ exports.listDailyQuizzes = async (req, res) => {
     const { category, subCategory, language, month } = req.query;
 
     const filter = {
+      contentType: 'DAILY_QUIZ',
       isActive: true,
     };
 
@@ -33,6 +34,7 @@ exports.getDailyQuizById = async (req, res) => {
 
     const quiz = await DailyQuiz.findOne({
       _id: id,
+      contentType: 'DAILY_QUIZ',
       isActive: true,
     })
       .populate('categories', 'name slug')

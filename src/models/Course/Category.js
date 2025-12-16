@@ -5,12 +5,10 @@ const categorySchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      unique: true,
       trim: true,
     },
     slug: {
       type: String,
-      unique: true,
       trim: true,
     },
     thumbnailUrl: {
@@ -21,6 +19,19 @@ const categorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    contentType: {
+      type: String,
+      enum: [
+        'ONLINE_COURSE',
+        'TEST_SERIES',
+        'DAILY_QUIZ',
+        'LIVE_CLASS',
+        'PUBLICATION',
+        'E_BOOK',
+        'CURRENT_AFFAIRS'
+      ],
+      required: true
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -29,6 +40,12 @@ const categorySchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+// Create unique index for slug + contentType combination
+categorySchema.index(
+  { slug: 1, contentType: 1 },
+  { unique: true }
 );
 
 module.exports = mongoose.model('Category', categorySchema);

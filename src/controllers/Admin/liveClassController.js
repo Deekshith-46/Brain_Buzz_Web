@@ -53,11 +53,27 @@ exports.createLiveClass = async (req, res) => {
       });
     }
 
+    // Check if category is for LIVE_CLASS
+    if (category.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category for Live Classes',
+      });
+    }
+
     const subCategory = await SubCategory.findById(subCategoryId);
     if (!subCategory) {
       return res.status(404).json({
         success: false,
         message: 'SubCategory not found',
+      });
+    }
+
+    // Check if subcategory is for LIVE_CLASS
+    if (subCategory.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid subcategory for Live Classes',
       });
     }
 
@@ -116,8 +132,28 @@ exports.getAllLiveClasses = async (req, res) => {
 
     // Build filter object
     const filter = {};
-    if (categoryId) filter.categoryId = categoryId;
-    if (subCategoryId) filter.subCategoryId = subCategoryId;
+    if (categoryId) {
+      // Validate category exists and is for LIVE_CLASS
+      const category = await Category.findById(categoryId);
+      if (!category || category.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid category for Live Classes',
+        });
+      }
+      filter.categoryId = categoryId;
+    }
+    if (subCategoryId) {
+      // Validate subcategory exists and is for LIVE_CLASS
+      const subCategory = await SubCategory.findById(subCategoryId);
+      if (!subCategory || subCategory.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid subcategory for Live Classes',
+        });
+      }
+      filter.subCategoryId = subCategoryId;
+    }
     if (languageId) filter.languageId = languageId;
     if (isActive !== undefined) filter.isActive = isActive === 'true' || isActive === true;
 
@@ -207,6 +243,14 @@ exports.updateLiveClass = async (req, res) => {
           message: 'Category not found',
         });
       }
+      
+      // Check if category is for LIVE_CLASS
+      if (category.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid category for Live Classes',
+        });
+      }
     }
 
     if (subCategoryId) {
@@ -215,6 +259,14 @@ exports.updateLiveClass = async (req, res) => {
         return res.status(404).json({
           success: false,
           message: 'SubCategory not found',
+        });
+      }
+      
+      // Check if subcategory is for LIVE_CLASS
+      if (subCategory.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid subcategory for Live Classes',
         });
       }
     }

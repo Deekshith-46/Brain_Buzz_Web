@@ -141,27 +141,38 @@ exports.createCourse = async (req, res) => {
     }
 
     // Handle study material files matched by index
-    const studyFiles = (req.files && req.files.studyMaterialFiles) || [];
-    const finalStudyMaterials = studyMaterials.map((sm, index) => {
-      const s = { ...sm };
-      if (studyFiles[index]) {
-        s._fileBuffer = studyFiles[index].buffer;
-      }
-      return s;
-    });
-
-    for (const sm of finalStudyMaterials) {
-      if (sm._fileBuffer) {
+    // FIX: Properly upload study materials to Cloudinary and map them
+    let finalStudyMaterials = [];
+    if (req.files && req.files.studyMaterialFiles && req.files.studyMaterialFiles.length > 0) {
+      // Prevent duplicate files by using a Map with filename as key
+      const uniqueFiles = new Map();
+      
+      req.files.studyMaterialFiles.forEach(file => {
+        uniqueFiles.set(file.originalname, file);
+      });
+      
+      // Upload each unique study material file to Cloudinary
+      for (const file of uniqueFiles.values()) {
         const uploadResult = await uploadToCloudinary(
-          sm._fileBuffer,
+          file.buffer,
           'brainbuzz/courses/study-materials',
           'raw'
         );
-        sm.fileUrl = uploadResult.secure_url;
-        delete sm._fileBuffer;
+        
+        finalStudyMaterials.push({
+          title: file.originalname,
+          fileUrl: uploadResult.secure_url
+        });
       }
     }
 
+    // Auto-mark first 2 classes as free
+    if (finalClasses && Array.isArray(finalClasses)) {
+      finalClasses.forEach((cls, index) => {
+        cls.isFree = index < 2;
+      });
+    }
+    
     const course = await Course.create({
       contentType,
       name,
@@ -194,15 +205,235 @@ exports.createCourse = async (req, res) => {
   }
 };
 
+// Create complete course in one API call with individual form fields (NEW FUNCTION)
+exports.createFullCourse = async (req, res) => {
+  try {
+    // Extract all form fields
+    const {
+      contentType = 'ONLINE_COURSE',
+      name,
+      courseType,
+      startDate,
+      originalPrice,
+      discountPrice,
+      pricingNote,
+      shortDescription,
+      detailedDescription,
+      isActive,
+      accessType,
+    } = req.body;
+
+    // Parse array fields from JSON strings
+    let categoryIds = [];
+    let subCategoryIds = [];
+    let languageIds = [];
+    let validityIds = [];
+    let classes = [];
+    let tutors = [];
+    let studyMaterials = [];
+
+    try {
+      categoryIds = req.body.categoryIds ? JSON.parse(req.body.categoryIds) : [];
+      subCategoryIds = req.body.subCategoryIds ? JSON.parse(req.body.subCategoryIds) : [];
+      languageIds = req.body.languageIds ? JSON.parse(req.body.languageIds) : [];
+      validityIds = req.body.validityIds ? JSON.parse(req.body.validityIds) : [];
+      classes = req.body.classes ? JSON.parse(req.body.classes) : [];
+      tutors = req.body.tutors ? JSON.parse(req.body.tutors) : [];
+      studyMaterials = req.body.studyMaterials ? JSON.parse(req.body.studyMaterials) : [];
+    } catch (parseError) {
+      return res.status(400).json({ 
+        message: 'Invalid JSON in one of the array fields',
+        error: parseError.message 
+      });
+    }
+
+    // Validation
+    if (!name) {
+      return res.status(400).json({ message: 'Course name is required' });
+    }
+
+    if (!originalPrice && originalPrice !== 0) {
+      return res.status(400).json({ message: 'Original price is required' });
+    }
+
+    // Handle thumbnail upload
+    let thumbnailUrl;
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+      const thumbFile = req.files.thumbnail[0];
+      const uploadResult = await uploadToCloudinary(
+        thumbFile.buffer,
+        'brainbuzz/courses/thumbnails',
+        'image'
+      );
+      thumbnailUrl = uploadResult.secure_url;
+    }
+
+    // Handle tutor images (match by index)
+    const tutorImages = (req.files && req.files.tutorImages) || [];
+    const finalTutors = tutors.map((tutor, index) => {
+      const t = { ...tutor };
+      if (tutorImages[index]) {
+        t._fileBuffer = tutorImages[index].buffer;
+      }
+      return t;
+    });
+
+    // Upload tutor images to Cloudinary
+    for (const tutor of finalTutors) {
+      if (tutor._fileBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          tutor._fileBuffer,
+          'brainbuzz/courses/tutors',
+          'image'
+        );
+        tutor.photoUrl = uploadResult.secure_url;
+        delete tutor._fileBuffer;
+      }
+    }
+
+    // Handle class media (thumbnails, lecture pics, videos) matched by index
+    const classThumbnails = (req.files && req.files.classThumbnails) || [];
+    const classLecturePics = (req.files && req.files.classLecturePics) || [];
+    const classVideos = (req.files && req.files.classVideos) || [];
+
+    const finalClasses = classes.map((cls, index) => {
+      const c = { ...cls };
+      if (classThumbnails[index]) {
+        c._thumbBuffer = classThumbnails[index].buffer;
+      }
+      if (classLecturePics[index]) {
+        c._lectureBuffer = classLecturePics[index].buffer;
+      }
+      if (classVideos[index]) {
+        c._videoBuffer = classVideos[index].buffer;
+      }
+      return c;
+    });
+
+    for (const cls of finalClasses) {
+      if (cls._thumbBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._thumbBuffer,
+          'brainbuzz/courses/classes/thumbnails',
+          'image'
+        );
+        cls.thumbnailUrl = uploadResult.secure_url;
+        delete cls._thumbBuffer;
+      }
+      if (cls._lectureBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._lectureBuffer,
+          'brainbuzz/courses/classes/lectures',
+          'image'
+        );
+        cls.lecturePhotoUrl = uploadResult.secure_url;
+        delete cls._lectureBuffer;
+      }
+      if (cls._videoBuffer) {
+        const uploadResult = await uploadToCloudinary(
+          cls._videoBuffer,
+          'brainbuzz/courses/classes/videos',
+          'video'
+        );
+        cls.videoUrl = uploadResult.secure_url;
+        delete cls._videoBuffer;
+      }
+    }
+
+    // Handle study material files matched by index
+    // FIX: Properly upload study materials to Cloudinary and map them
+    let finalStudyMaterials = [];
+    if (req.files && req.files.studyMaterialFiles && req.files.studyMaterialFiles.length > 0) {
+      // Upload each study material file to Cloudinary
+      for (const file of req.files.studyMaterialFiles) {
+        const uploadResult = await uploadToCloudinary(
+          file.buffer,
+          'brainbuzz/courses/study-materials',
+          'raw'
+        );
+        
+        finalStudyMaterials.push({
+          title: file.originalname,
+          fileUrl: uploadResult.secure_url
+        });
+      }
+    }
+
+    // Auto-mark first 2 classes as free (as per specification)
+    if (finalClasses && Array.isArray(finalClasses)) {
+      finalClasses.forEach((cls, index) => {
+        cls.isFree = index < 2;
+      });
+    }
+    
+    // Create the course
+    const course = await Course.create({
+      contentType,
+      name,
+      courseType,
+      startDate: startDate ? new Date(startDate) : null,
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      validities: validityIds,
+      thumbnailUrl,
+      originalPrice: parseFloat(originalPrice),
+      discountPrice: discountPrice ? parseFloat(discountPrice) : 0,
+      pricingNote,
+      shortDescription,
+      detailedDescription,
+      tutors: finalTutors,
+      classes: finalClasses,
+      studyMaterials: finalStudyMaterials,
+      // Ensure isActive defaults to true when not provided
+      isActive: isActive === 'true' || isActive === true || isActive === undefined ? true : false,
+      accessType: accessType || 'PAID',
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Complete course created successfully',
+      data: course,
+    });
+  } catch (error) {
+    console.error('Error creating full course:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Server error', 
+      error: error.message 
+    });
+  }
+};
+
 // Step 1: create course shell (content, categories, subcategories, date)
 exports.createCourseShell = async (req, res) => {
   try {
-    const {
-      startDate,
-      categoryIds = [],
-      subCategoryIds = [],
+    // Parse form-data fields properly
+    let {
       contentType = 'ONLINE_COURSE',
+      startDate,
+      categoryIds = '[]',
+      subCategoryIds = '[]',
     } = req.body;
+
+    // Parse array strings to actual arrays
+    try {
+      categoryIds = typeof categoryIds === 'string' ? JSON.parse(categoryIds) : categoryIds;
+      subCategoryIds = typeof subCategoryIds === 'string' ? JSON.parse(subCategoryIds) : subCategoryIds;
+    } catch (parseError) {
+      return res.status(400).json({ 
+        message: 'Invalid categoryIds or subCategoryIds format. Must be valid JSON arrays.',
+        error: parseError.message 
+      });
+    }
+
+    // Convert startDate string to Date object
+    if (startDate) {
+      startDate = new Date(startDate);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({ message: 'Invalid startDate format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)' });
+      }
+    }
 
     const draftName = `Draft Course ${Date.now()}`;
 
@@ -239,12 +470,46 @@ exports.createCourseShell = async (req, res) => {
 exports.updateCourseShell = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
+    
+    // Parse form-data fields properly
+    let {
       contentType,
       startDate,
       categoryIds,
       subCategoryIds,
     } = req.body;
+
+    // Parse array strings to actual arrays if provided
+    if (categoryIds) {
+      try {
+        categoryIds = typeof categoryIds === 'string' ? JSON.parse(categoryIds) : categoryIds;
+      } catch (parseError) {
+        return res.status(400).json({ 
+          message: 'Invalid categoryIds format. Must be valid JSON array.',
+          error: parseError.message 
+        });
+      }
+    }
+
+    if (subCategoryIds) {
+      try {
+        subCategoryIds = typeof subCategoryIds === 'string' ? JSON.parse(subCategoryIds) : subCategoryIds;
+      } catch (parseError) {
+        return res.status(400).json({ 
+          message: 'Invalid subCategoryIds format. Must be valid JSON array.',
+          error: parseError.message 
+        });
+      }
+    }
+
+    // Convert startDate string to Date object if provided
+    if (startDate) {
+      const dateObj = new Date(startDate);
+      if (isNaN(dateObj.getTime())) {
+        return res.status(400).json({ message: 'Invalid startDate format. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss.sssZ)' });
+      }
+      startDate = dateObj;
+    }
 
     const updates = {};
     if (contentType) updates.contentType = contentType;
@@ -697,15 +962,23 @@ exports.getCourseById = async (req, res) => {
 };
 
 // Update course (supports replacing thumbnail and tutor images)
+// Supports both formats:
+// 1. Wrapped format: course={...}
+// 2. Direct fields: name=..., startDate=..., etc.
 exports.updateCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!req.body.course) {
-      return res.status(400).json({ message: 'Course data (course) is required in form-data' });
+    // SOLUTION 2: Support both wrapped and direct field formats
+    let courseData = {};
+    
+    if (req.body.course) {
+      // Wrapped format (backward compatible)
+      courseData = JSON.parse(req.body.course);
+    } else {
+      // Direct fields format (better DX)
+      courseData = req.body;
     }
-
-    const parsed = JSON.parse(req.body.course);
 
     const {
       contentType,
@@ -726,7 +999,7 @@ exports.updateCourse = async (req, res) => {
       classes,
       studyMaterials,
       isActive,
-    } = parsed;
+    } = courseData;
 
     const updates = {};
 
@@ -858,6 +1131,13 @@ exports.updateCourse = async (req, res) => {
 
       updates.studyMaterials = finalStudyMaterials;
     }
+    
+    // Auto-mark first 2 classes as free if classes are being updated
+    if (updates.classes && Array.isArray(updates.classes)) {
+      updates.classes.forEach((cls, index) => {
+        cls.isFree = index < 2;
+      });
+    }
 
     const course = await Course.findByIdAndUpdate(id, updates, {
       new: true,
@@ -971,6 +1251,13 @@ exports.addClassesToCourse = async (req, res) => {
 
     // Append new classes to existing classes
     course.classes.push(...finalClasses);
+    
+    // Auto-mark first 2 classes as free
+    if (course.classes && Array.isArray(course.classes)) {
+      course.classes.forEach((cls, index) => {
+        cls.isFree = index < 2;
+      });
+    }
 
     // Save the updated course
     await course.save();
@@ -988,6 +1275,173 @@ exports.addClassesToCourse = async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding classes to course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update course descriptions and pricing note
+exports.updateCourseDescriptions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { shortDescription, detailedDescription, pricingNote } = req.body;
+    
+    const updates = {};
+    if (typeof shortDescription !== 'undefined') updates.shortDescription = shortDescription;
+    if (typeof detailedDescription !== 'undefined') updates.detailedDescription = detailedDescription;
+    if (typeof pricingNote !== 'undefined') updates.pricingNote = pricingNote;
+    
+    const course = await Course.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    )
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+    
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+    
+    return res.status(200).json({
+      message: 'Course descriptions updated successfully',
+      data: course,
+    });
+  } catch (error) {
+    console.error('Error updating course descriptions:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Publish course (set isActive to true)
+exports.publishCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validate that the course has all required fields before publishing
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+    
+    // Check if course has essential data
+    if (!course.name || course.name.startsWith('Draft Course')) {
+      return res.status(400).json({ 
+        message: 'Course must have a proper name before publishing' 
+      });
+    }
+    
+    if (!course.categories || course.categories.length === 0) {
+      return res.status(400).json({ 
+        message: 'Course must have at least one category before publishing' 
+      });
+    }
+    
+    if (!course.subCategories || course.subCategories.length === 0) {
+      return res.status(400).json({ 
+        message: 'Course must have at least one subcategory before publishing' 
+      });
+    }
+    
+    if (course.originalPrice == null || course.originalPrice < 0) {
+      return res.status(400).json({ 
+        message: 'Course must have a valid price before publishing' 
+      });
+    }
+    
+    // Update the course to be active
+    course.isActive = true;
+    await course.save();
+    
+    const populatedCourse = await Course.findById(id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+    
+    return res.status(200).json({
+      message: 'Course published successfully',
+      data: populatedCourse,
+    });
+  } catch (error) {
+    console.error('Error publishing course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Upload media for a specific class (video, thumbnail, lecture photo)
+exports.uploadClassMedia = async (req, res) => {
+  try {
+    const { id, classId } = req.params;
+    
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+    
+    const classObj = course.classes.id(classId);
+    if (!classObj) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+    
+    // Handle file uploads
+    const thumbnail = req.files?.thumbnail?.[0];
+    const lecturePhoto = req.files?.lecturePhoto?.[0];
+    const video = req.files?.video?.[0];
+    
+    let updated = false;
+    
+    if (thumbnail) {
+      const uploadResult = await uploadToCloudinary(
+        thumbnail.buffer,
+        'brainbuzz/courses/classes/thumbnails',
+        'image'
+      );
+      classObj.thumbnailUrl = uploadResult.secure_url;
+      updated = true;
+    }
+    
+    if (lecturePhoto) {
+      const uploadResult = await uploadToCloudinary(
+        lecturePhoto.buffer,
+        'brainbuzz/courses/classes/lectures',
+        'image'
+      );
+      classObj.lecturePhotoUrl = uploadResult.secure_url;
+      updated = true;
+    }
+    
+    if (video) {
+      const uploadResult = await uploadToCloudinary(
+        video.buffer,
+        'brainbuzz/courses/classes/videos',
+        'video'
+      );
+      classObj.videoUrl = uploadResult.secure_url;
+      updated = true;
+    }
+    
+    if (!updated) {
+      return res.status(400).json({ 
+        message: 'At least one file (thumbnail, lecturePhoto, or video) is required' 
+      });
+    }
+    
+    await course.save();
+    
+    const populatedCourse = await Course.findById(id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+    
+    return res.status(200).json({
+      message: 'Class media uploaded successfully',
+      data: populatedCourse,
+    });
+  } catch (error) {
+    console.error('Error uploading class media:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

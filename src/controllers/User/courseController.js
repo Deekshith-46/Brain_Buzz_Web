@@ -42,9 +42,9 @@ const processClassesForUser = (classes, hasPurchased, isAdmin = false) => {
     }));
   }
 
-  // Process classes: first 2 are free, rest require purchase
-  return sortedClasses.map((cls, index) => {
-    const isFreeClass = index < 2; // First 2 classes (0 and 1) are free
+  // Process classes: use isFree field, rest require purchase
+  return sortedClasses.map((cls) => {
+    const isFreeClass = cls.isFree || false; // Use the isFree field
     const hasAccess = isFreeClass || hasPurchased;
     const isLocked = !hasAccess;
 
@@ -159,6 +159,53 @@ exports.getCourseById = async (req, res) => {
     return res.status(200).json({ data: courseObj });
   } catch (error) {
     console.error('Error fetching course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get a specific course class/video
+exports.getCourseClass = async (req, res) => {
+  try {
+    const { courseId, classId } = req.params;
+    const userId = req.user?._id;
+
+    const course = await Course.findOne({
+      _id: courseId,
+      isActive: true,
+    })
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+
+    // Find the specific class
+    const classObj = course.classes.id(classId);
+    if (!classObj) {
+      return res.status(404).json({ message: 'Class not found' });
+    }
+
+    // Check if user has purchased the course or if it's a free class
+    const hasPurchased = await checkCoursePurchase(userId, course._id);
+    const isFreeClass = classObj.isFree || false;
+    const hasAccess = isFreeClass || hasPurchased;
+
+    if (!hasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Please purchase this course to access this content' 
+      });
+    }
+
+    return res.status(200).json({ 
+      success: true,
+      data: classObj 
+    });
+  } catch (error) {
+    console.error('Error fetching course class:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

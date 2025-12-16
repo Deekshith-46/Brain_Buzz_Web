@@ -79,6 +79,7 @@ const checkTestSeriesAccess = async (userId, seriesId) => {
     return false;
   }
   
+  // Check if the test is free or if user has purchased the series
   // In a real implementation, you would check if the user has purchased the series
   // For now, we'll assume they have access
   return true;

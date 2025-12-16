@@ -38,13 +38,16 @@ exports.createSubCategory = async (req, res) => {
       return res.status(400).json({ message: 'Invalid category id' });
     }
 
+    // Get the contentType from the parent category
+    const contentType = categoryExists.contentType;
+
     const slug = slugify(name);
 
-    const existing = await SubCategory.findOne({ category, slug });
+    const existing = await SubCategory.findOne({ category, slug, contentType });
     if (existing) {
       return res
         .status(400)
-        .json({ message: 'Subcategory with this name already exists for this category' });
+        .json({ message: 'Subcategory with this name already exists for this category and content type' });
     }
 
     let thumbnailUrl;
@@ -62,6 +65,7 @@ exports.createSubCategory = async (req, res) => {
       slug,
       description,
       isActive,
+      contentType,
       thumbnailUrl,
     });
 
@@ -77,8 +81,16 @@ exports.createSubCategory = async (req, res) => {
 
 exports.getSubCategories = async (req, res) => {
   try {
-    const { category } = req.query;
-    const filter = {};
+    const { category, contentType } = req.query;
+    
+    // Require contentType parameter
+    if (!contentType) {
+      return res.status(400).json({
+        message: 'contentType is required'
+      });
+    }
+    
+    const filter = { contentType };
     if (category) {
       filter.category = category;
     }
@@ -114,25 +126,39 @@ exports.updateSubCategory = async (req, res) => {
 
     const updates = { description, isActive };
 
+    let contentType = null;
+    
     if (category) {
       const categoryExists = await Category.findById(category);
       if (!categoryExists) {
         return res.status(400).json({ message: 'Invalid category id' });
       }
       updates.category = category;
+      contentType = categoryExists.contentType;
+      updates.contentType = contentType;
     }
 
     if (name) {
       const slug = slugify(name);
+      
+      // Get the contentType if not already set
+      if (!contentType) {
+        const existingSubCategory = await SubCategory.findById(id);
+        if (existingSubCategory) {
+          contentType = existingSubCategory.contentType;
+        }
+      }
+      
       const existing = await SubCategory.findOne({
         category: category || undefined,
         slug,
+        contentType,
         _id: { $ne: id },
       });
       if (existing) {
         return res
           .status(400)
-          .json({ message: 'Subcategory with this name already exists for this category' });
+          .json({ message: 'Subcategory with this name already exists for this category and content type' });
       }
       updates.name = name;
       updates.slug = slug;
@@ -177,6 +203,31 @@ exports.deleteSubCategory = async (req, res) => {
     return res.status(200).json({ message: 'Subcategory deleted successfully' });
   } catch (error) {
     console.error('Error deleting subcategory:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.toggleSubCategoryStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    const subCategory = await SubCategory.findByIdAndUpdate(
+      id,
+      { isActive },
+      { new: true }
+    );
+
+    if (!subCategory) {
+      return res.status(404).json({ message: 'Subcategory not found' });
+    }
+
+    return res.status(200).json({
+      message: `Subcategory ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: subCategory,
+    });
+  } catch (error) {
+    console.error('Error toggling subcategory status:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

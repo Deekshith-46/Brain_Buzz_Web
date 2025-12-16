@@ -6,7 +6,7 @@ const Language = require('../../models/Course/Language');
 // Get all Categories for Live Classes
 exports.getLiveClassCategories = async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true }).select('name slug');
+    const categories = await Category.find({ isActive: true, contentType: 'LIVE_CLASS' }).select('name slug');
 
     return res.status(200).json({
       success: true,
@@ -35,12 +35,19 @@ exports.getLanguagesByCategory = async (req, res) => {
       });
     }
 
-    // Validate category exists
+    // Validate category exists and is for LIVE_CLASS
     const category = await Category.findById(categoryId);
     if (!category) {
       return res.status(404).json({
         success: false,
         message: 'Category not found',
+      });
+    }
+
+    if (category.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category for Live Classes',
       });
     }
 
@@ -86,12 +93,19 @@ exports.getSubCategoriesByCategoryAndLanguage = async (req, res) => {
       });
     }
 
-    // Validate category exists
+    // Validate category exists and is for LIVE_CLASS
     const category = await Category.findById(categoryId);
     if (!category) {
       return res.status(404).json({
         success: false,
         message: 'Category not found',
+      });
+    }
+
+    if (category.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category for Live Classes',
       });
     }
 
@@ -118,6 +132,7 @@ exports.getSubCategoriesByCategoryAndLanguage = async (req, res) => {
     const subCategories = await SubCategory.find({
       _id: { $in: subCategoryIds },
       category: categoryId,
+      contentType: 'LIVE_CLASS',
       isActive: true,
     }).select('name slug');
 
@@ -146,9 +161,31 @@ exports.getLiveClasses = async (req, res) => {
       isActive: true,
     };
 
-    if (categoryId) filter.categoryId = categoryId;
+    if (categoryId) {
+      // Validate category exists and is for LIVE_CLASS
+      const category = await Category.findById(categoryId);
+      if (!category || category.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid category for Live Classes',
+        });
+      }
+      filter.categoryId = categoryId;
+    }
+    
     if (languageId) filter.languageId = languageId;
-    if (subCategoryId) filter.subCategoryId = subCategoryId;
+    
+    if (subCategoryId) {
+      // Validate subcategory exists and is for LIVE_CLASS
+      const subCategory = await SubCategory.findById(subCategoryId);
+      if (!subCategory || subCategory.contentType !== 'LIVE_CLASS') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid subcategory for Live Classes',
+        });
+      }
+      filter.subCategoryId = subCategoryId;
+    }
 
     const liveClasses = await LiveClass.find(filter)
       .populate('categoryId', 'name slug')
@@ -213,6 +250,22 @@ exports.getLiveClassById = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Live class is not active',
+      });
+    }
+
+    // Validate category exists and is for LIVE_CLASS
+    if (liveClass.categoryId && liveClass.categoryId.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid category for Live Classes',
+      });
+    }
+
+    // Validate subcategory exists and is for LIVE_CLASS
+    if (liveClass.subCategoryId && liveClass.subCategoryId.contentType !== 'LIVE_CLASS') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid subcategory for Live Classes',
       });
     }
 

@@ -27,17 +27,49 @@ const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   });
 };
 
+// Helper function to parse affair payload from form data
+const parseAffairPayload = (req) => {
+  if (!req.body.affair) {
+    throw new Error('Affair data is required in form-data');
+  }
+  
+  let parsed;
+  try {
+    parsed = JSON.parse(req.body.affair);
+  } catch (e) {
+    throw new Error('Invalid JSON in affair field');
+  }
+  
+  return parsed;
+};
+
+// Helper function to handle thumbnail upload
+const handleThumbnailUpload = async (req, folder) => {
+  if (req.file && req.file.buffer) {
+    try {
+      const uploadResult = await uploadToCloudinary(req.file.buffer, folder, 'image');
+      return uploadResult.secure_url;
+    } catch (error) {
+      console.error('Error uploading thumbnail:', error);
+      throw new Error('Failed to upload thumbnail');
+    }
+  }
+  return null;
+};
+
 // -------- Latest Current Affairs --------
 
 exports.createLatestCurrentAffair = async (req, res) => {
   try {
-    if (!req.body.affair) {
-      return res
-        .status(400)
-        .json({ message: 'Current affair data (affair) is required in form-data' });
+    let parsed;
+    try {
+      parsed = parseAffairPayload(req);
+    } catch (e) {
+      return res.status(400).json({
+        message: 'Invalid request data',
+        error: e.message
+      });
     }
-
-    const parsed = JSON.parse(req.body.affair);
 
     const {
       date,
@@ -50,19 +82,34 @@ exports.createLatestCurrentAffair = async (req, res) => {
       isActive,
     } = parsed;
 
+    // Validate required fields
     if (!heading) {
       return res.status(400).json({ message: 'CA heading is required' });
     }
 
+    // Date is required for Latest Current Affairs
+    if (!date) {
+      return res.status(400).json({ message: 'Date is required for Latest Current Affairs' });
+    }
+
+    // Validate that only one language is selected (best practice)
+    if (languageIds && languageIds.length > 1) {
+      return res.status(400).json({ 
+        message: 'Only one language should be selected per content entry (best practice)' 
+      });
+    }
+
     let thumbnailUrl;
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/current-affairs/latest/thumbnails',
-        'image'
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/latest/thumbnails'
       );
-      thumbnailUrl = uploadResult.secure_url;
+    } catch (error) {
+      return res.status(500).json({ 
+        message: 'Failed to upload thumbnail', 
+        error: error.message 
+      });
     }
 
     const doc = await LatestCurrentAffair.create({
@@ -74,7 +121,7 @@ exports.createLatestCurrentAffair = async (req, res) => {
       thumbnailUrl,
       description,
       fullContent,
-      isActive,
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
     });
 
     return res.status(201).json({
@@ -216,13 +263,15 @@ exports.deleteLatestCurrentAffair = async (req, res) => {
 
 exports.createMonthlyCurrentAffair = async (req, res) => {
   try {
-    if (!req.body.affair) {
-      return res
-        .status(400)
-        .json({ message: 'Current affair data (affair) is required in form-data' });
+    let parsed;
+    try {
+      parsed = parseAffairPayload(req);
+    } catch (e) {
+      return res.status(400).json({
+        message: 'Invalid request data',
+        error: e.message
+      });
     }
-
-    const parsed = JSON.parse(req.body.affair);
 
     const {
       date,
@@ -236,23 +285,47 @@ exports.createMonthlyCurrentAffair = async (req, res) => {
       isActive,
     } = parsed;
 
+    // Validate required fields
     if (!name) {
       return res.status(400).json({ message: 'CA name is required' });
     }
 
+    // Month is required for Monthly Current Affairs
+    if (!month) {
+      return res.status(400).json({ message: 'Month is required for Monthly Current Affairs' });
+    }
+
+    // Validate that only one language is selected (best practice)
+    if (languageIds && languageIds.length > 1) {
+      return res.status(400).json({ 
+        message: 'Only one language should be selected per content entry (best practice)' 
+      });
+    }
+
     let thumbnailUrl;
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/current-affairs/monthly/thumbnails',
-        'image'
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/monthly/thumbnails'
       );
-      thumbnailUrl = uploadResult.secure_url;
+    } catch (error) {
+      return res.status(500).json({ 
+        message: 'Failed to upload thumbnail', 
+        error: error.message 
+      });
+    }
+
+    // Auto-set date to 1st of the month if not provided
+    let finalDate = date;
+    if (!date && month) {
+      // Get current year
+      const currentYear = new Date().getFullYear();
+      // Set to 1st of the month
+      finalDate = new Date(`${currentYear}-${month}-01`);
     }
 
     const doc = await MonthlyCurrentAffair.create({
-      date,
+      date: finalDate,
       month,
       categories: categoryIds,
       subCategories: subCategoryIds,
@@ -261,7 +334,7 @@ exports.createMonthlyCurrentAffair = async (req, res) => {
       thumbnailUrl,
       description,
       fullContent,
-      isActive,
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
     });
 
     return res.status(201).json({
@@ -417,7 +490,7 @@ exports.createSportsCurrentAffair = async (req, res) => {
     }
 
     // Required (based on your existing code)
-    const { sport = '', event = '' } = payload;
+    const { sport = '', event = '', date } = payload;
     if (!sport || !event) {
       return res.status(400).json({
         success: false,
@@ -425,10 +498,35 @@ exports.createSportsCurrentAffair = async (req, res) => {
       });
     }
 
-    const thumbnailUrl = await handleThumbnailUpload(
-      req,
-      'brainbuzz/current-affairs/sports/thumbnails'
-    );
+    // Date is required for Sports Current Affairs
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date is required for Sports Current Affairs',
+      });
+    }
+
+    // Validate that only one language is selected (best practice)
+    if (payload.languageIds && payload.languageIds.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only one language should be selected per content entry (best practice)',
+      });
+    }
+
+    let thumbnailUrl;
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/sports/thumbnails'
+      );
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload thumbnail',
+        error: error.message,
+      });
+    }
     if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
 
     payload.contentType = 'CURRENT_AFFAIRS';
@@ -616,6 +714,7 @@ exports.createStateCurrentAffair = async (req, res) => {
       });
     }
 
+    // Required fields
     if (!payload.state) {
       return res.status(400).json({
         success: false,
@@ -629,10 +728,35 @@ exports.createStateCurrentAffair = async (req, res) => {
       });
     }
 
-    const thumbnailUrl = await handleThumbnailUpload(
-      req,
-      'brainbuzz/current-affairs/state/thumbnails'
-    );
+    // Date is required for State Current Affairs
+    if (!payload.date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date is required for State Current Affairs',
+      });
+    }
+
+    // Validate that only one language is selected (best practice)
+    if (payload.languageIds && payload.languageIds.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only one language should be selected per content entry (best practice)',
+      });
+    }
+
+    let thumbnailUrl;
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/state/thumbnails'
+      );
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload thumbnail',
+        error: error.message,
+      });
+    }
     if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
 
     payload.affairType = 'StateCurrentAffair';

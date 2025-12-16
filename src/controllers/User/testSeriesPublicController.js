@@ -26,7 +26,9 @@ exports.listPublicTestSeries = async (req, res) => {
     const userId = req.user?._id;
 
     // Filter: include documents where isActive is true OR isActive doesn't exist (for backward compatibility)
+    // Also filter by contentType to ensure proper isolation
     const filter = {
+      contentType: 'TEST_SERIES',
       $or: [
         { isActive: true },
         { isActive: { $exists: false } }
@@ -38,14 +40,18 @@ exports.listPublicTestSeries = async (req, res) => {
     console.log('Test Series filter:', JSON.stringify(filter, null, 2));
     
     // First, check total count of test series (for debugging)
-    const totalCount = await TestSeries.countDocuments({});
+    const totalCount = await TestSeries.countDocuments({ contentType: 'TEST_SERIES' });
     const activeCount = await TestSeries.countDocuments({ 
+      contentType: 'TEST_SERIES',
       $or: [
         { isActive: true },
         { isActive: { $exists: false } }
       ]
     });
-    const inactiveCount = await TestSeries.countDocuments({ isActive: false });
+    const inactiveCount = await TestSeries.countDocuments({ 
+      contentType: 'TEST_SERIES',
+      isActive: false 
+    });
     console.log(`Total test series in DB: ${totalCount}, Active/Missing isActive: ${activeCount}, Inactive: ${inactiveCount}`);
     
     const seriesList = await TestSeries.find(filter)
@@ -98,7 +104,7 @@ exports.getPublicTestSeriesById = async (req, res) => {
     const { seriesId } = req.params;
     const userId = req.user?._id;
 
-    const series = await TestSeries.findOne({ _id: seriesId, isActive: true })
+    const series = await TestSeries.findOne({ _id: seriesId, contentType: 'TEST_SERIES', isActive: true })
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug');
 
@@ -160,6 +166,7 @@ exports.getPublicTestInSeries = async (req, res) => {
     // First, check if the test series exists
     const testSeries = await TestSeries.findOne({ 
       _id: seriesId, 
+      contentType: 'TEST_SERIES',
       isActive: true 
     }).lean();
 

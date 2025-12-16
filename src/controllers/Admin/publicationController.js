@@ -37,7 +37,6 @@ exports.createPublication = async (req, res) => {
       validityIds = [],
       originalPrice,
       discountPrice,
-      discountPercent,
       availableIn,
       pricingNote,
       shortDescription,
@@ -52,6 +51,12 @@ exports.createPublication = async (req, res) => {
 
     if (!originalPrice && originalPrice !== 0) {
       return res.status(400).json({ message: 'Original price is required' });
+    }
+
+    // Calculate discount percent automatically
+    let discountPercent = 0;
+    if (originalPrice > 0 && discountPrice !== undefined) {
+      discountPercent = ((originalPrice - discountPrice) / originalPrice) * 100;
     }
 
     // Thumbnail
@@ -189,137 +194,390 @@ exports.getPublicationById = async (req, res) => {
   }
 };
 
-// Update publication
+// Main PATCH route for simple fields only
+const ALLOWED_FIELDS = [
+  'name',
+  'startDate',
+  'originalPrice',
+  'discountPrice',
+  'availableIn',
+  'shortDescription',
+  'detailedDescription',
+  'isActive',
+  'validities',
+  'pricingNote'
+];
+
 exports.updatePublication = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    if (!req.body.publication) {
-      return res
-        .status(400)
-        .json({ message: 'Publication data (publication) is required in form-data' });
-    }
-
-    const parsed = JSON.parse(req.body.publication);
-
-    const {
-      name,
-      startDate,
-      categoryIds,
-      subCategoryIds,
-      languageIds,
-      validityIds,
-      originalPrice,
-      discountPrice,
-      discountPercent,
-      availableIn,
-      pricingNote,
-      shortDescription,
-      detailedDescription,
-      authors,
-      isActive,
-    } = parsed;
-
     const updates = {};
 
-    if (name) updates.name = name;
-    if (startDate) updates.startDate = startDate;
-    if (categoryIds) updates.categories = categoryIds;
-    if (subCategoryIds) updates.subCategories = subCategoryIds;
-    if (languageIds) updates.languages = languageIds;
-    if (validityIds) updates.validities = validityIds;
-    if (typeof originalPrice !== 'undefined') updates.originalPrice = originalPrice;
-    if (typeof discountPrice !== 'undefined') updates.discountPrice = discountPrice;
-    if (typeof discountPercent !== 'undefined') updates.discountPercent = discountPercent;
-    if (typeof availableIn !== 'undefined') updates.availableIn = availableIn;
-    if (typeof pricingNote !== 'undefined') updates.pricingNote = pricingNote;
-    if (typeof shortDescription !== 'undefined') updates.shortDescription = shortDescription;
-    if (typeof detailedDescription !== 'undefined')
-      updates.detailedDescription = detailedDescription;
-    if (typeof isActive !== 'undefined') updates.isActive = isActive;
-
-    // Thumbnail
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/publications/thumbnails',
-        'image'
-      );
-      updates.thumbnailUrl = uploadResult.secure_url;
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        // Special handling for startDate to ensure proper Date conversion
+        if (field === 'startDate' && req.body[field]) {
+          // Handle different date formats
+          let dateValue;
+          if (req.body[field].includes('T')) {
+            // ISO format already
+            dateValue = new Date(req.body[field]);
+          } else {
+            // For YYYY-MM-DD format from frontend date pickers
+            dateValue = new Date(req.body[field]);
+          }
+          
+          // Normalize to UTC midnight for date-only fields
+          // This ensures consistent date handling regardless of client timezone
+          // and prevents date shifting when converting between timezones
+          if (!isNaN(dateValue.getTime())) {
+            dateValue.setUTCHours(0, 0, 0, 0);
+            updates[field] = dateValue;
+          }
+        } else {
+          updates[field] = req.body[field];
+        }
+      }
     }
 
-    // Authors
-    if (Array.isArray(authors)) {
-      const authorImages = (req.files && req.files.authorImages) || [];
-      const finalAuthors = authors.map((author, index) => {
-        const a = { ...author };
-        if (authorImages[index]) {
-          a._fileBuffer = authorImages[index].buffer;
-        }
-        return a;
+    // Check if we have any updates
+    if (Object.keys(updates).length === 0) {
+      const publication = await Publication.findById(req.params.id)
+        .populate('categories subCategories languages validities');
+      
+      if (!publication) {
+        return res.status(404).json({ message: 'Publication not found' });
+      }
+      
+      return res.json({
+        message: 'No changes detected',
+        data: publication
       });
+    }
 
-      for (const author of finalAuthors) {
-        if (author._fileBuffer) {
-          const uploadResult = await uploadToCloudinary(
-            author._fileBuffer,
-            'brainbuzz/publications/authors',
-            'image'
-          );
-          author.photoUrl = uploadResult.secure_url;
-          delete author._fileBuffer;
+    // Calculate discount percent automatically if both prices are provided
+    if (updates.originalPrice !== undefined && updates.discountPrice !== undefined) {
+      if (updates.originalPrice > 0) {
+        updates.discountPercent = ((updates.originalPrice - updates.discountPrice) / updates.originalPrice) * 100;
+      } else {
+        updates.discountPercent = 0;
+      }
+    } else if (updates.originalPrice !== undefined || updates.discountPrice !== undefined) {
+      // If only one price is updated, we need to fetch the publication to calculate the discount
+      const publication = await Publication.findById(req.params.id);
+      if (publication) {
+        const originalPrice = updates.originalPrice !== undefined ? updates.originalPrice : publication.originalPrice;
+        const discountPrice = updates.discountPrice !== undefined ? updates.discountPrice : publication.discountPrice;
+        
+        if (originalPrice > 0) {
+          updates.discountPercent = ((originalPrice - discountPrice) / originalPrice) * 100;
+        } else {
+          updates.discountPercent = 0;
         }
       }
-
-      updates.authors = finalAuthors;
     }
 
-    // Gallery images
-    if (req.files && req.files.galleryImages && req.files.galleryImages.length > 0) {
-      const galleryImagesFiles = req.files.galleryImages;
-      const galleryImages = [];
-      for (const img of galleryImagesFiles) {
-        const uploadResult = await uploadToCloudinary(
-          img.buffer,
-          'brainbuzz/publications/images',
-          'image'
-        );
-        galleryImages.push(uploadResult.secure_url);
-      }
-      updates.galleryImages = galleryImages;
-    }
-
-    // Book file
-    if (req.files && req.files.bookFile && req.files.bookFile[0]) {
-      const bookFile = req.files.bookFile[0];
-      const uploadResult = await uploadToCloudinary(
-        bookFile.buffer,
-        'brainbuzz/publications/books',
-        'raw'
-      );
-      updates.bookFileUrl = uploadResult.secure_url;
-    }
-
-    const publication = await Publication.findByIdAndUpdate(id, updates, {
-      new: true,
-      runValidators: true,
-    })
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
-      .populate('languages', 'name code')
-      .populate('validities', 'label durationInDays');
+    const publication = await Publication.findByIdAndUpdate(
+      req.params.id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    ).populate('categories subCategories languages validities');
 
     if (!publication) {
       return res.status(404).json({ message: 'Publication not found' });
     }
 
-    return res.status(200).json({
+    return res.json({
       message: 'Publication updated successfully',
-      data: publication,
+      data: publication
     });
   } catch (error) {
     console.error('Error updating publication:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Add author
+exports.addAuthor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, qualification, subject } = req.body;
+
+    if (!name || !qualification || !subject) {
+      return res.status(400).json({ message: 'Name, qualification, and subject are required' });
+    }
+
+    const publication = await Publication.findById(id);
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    // Handle author image upload
+    let photoUrl;
+    if (req.file && req.file.buffer) {
+      const uploadResult = await uploadToCloudinary(
+        req.file.buffer,
+        'brainbuzz/publications/authors',
+        'image'
+      );
+      photoUrl = uploadResult.secure_url;
+    }
+
+    publication.authors.push({
+      name,
+      qualification,
+      subject,
+      photoUrl
+    });
+
+    await publication.save();
+
+    // Populate the updated publication
+    const updatedPublication = await Publication.findById(id)
+      .populate('categories subCategories languages validities');
+
+    return res.json({
+      message: 'Author added successfully',
+      data: updatedPublication
+    });
+  } catch (error) {
+    console.error('Error adding author:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update ONE author
+exports.updateAuthor = async (req, res) => {
+  try {
+    const { id, authorId } = req.params;
+    const { name, qualification, subject } = req.body;
+
+    const publication = await Publication.findById(id);
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    const author = publication.authors.id(authorId);
+    if (!author) {
+      return res.status(404).json({ message: 'Author not found' });
+    }
+
+    // Update fields if provided
+    if (name !== undefined) author.name = name;
+    if (qualification !== undefined) author.qualification = qualification;
+    if (subject !== undefined) author.subject = subject;
+
+    // Handle author image upload if provided
+    if (req.file && req.file.buffer) {
+      const uploadResult = await uploadToCloudinary(
+        req.file.buffer,
+        'brainbuzz/publications/authors',
+        'image'
+      );
+      author.photoUrl = uploadResult.secure_url;
+    }
+
+    await publication.save();
+
+    // Populate the updated publication
+    const updatedPublication = await Publication.findById(id)
+      .populate('categories subCategories languages validities');
+
+    return res.json({
+      message: 'Author updated successfully',
+      data: updatedPublication
+    });
+  } catch (error) {
+    console.error('Error updating author:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Delete author
+exports.deleteAuthor = async (req, res) => {
+  try {
+    const { id, authorId } = req.params;
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      { $pull: { authors: { _id: authorId } } },
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Author removed successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error deleting author:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Add image to gallery
+exports.addImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Image file is required' });
+    }
+
+    const uploadResult = await uploadToCloudinary(
+      req.file.buffer,
+      'brainbuzz/publications/images',
+      'image'
+    );
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      { $push: { galleryImages: uploadResult.secure_url } },
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Image added successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error adding image:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Remove image from gallery
+exports.removeImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imageUrl } = req.body;
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: 'Image URL is required' });
+    }
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      { $pull: { galleryImages: imageUrl } },
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Image removed successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error removing image:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update book file
+exports.updateBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Book file is required' });
+    }
+
+    const uploadResult = await uploadToCloudinary(
+      req.file.buffer,
+      'brainbuzz/publications/books',
+      'raw'
+    );
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      { bookFileUrl: uploadResult.secure_url },
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Book updated successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error updating book:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update thumbnail
+exports.updateThumbnail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'Thumbnail file is required' });
+    }
+
+    const uploadResult = await uploadToCloudinary(
+      req.file.buffer,
+      'brainbuzz/publications/thumbnails',
+      'image'
+    );
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      { thumbnailUrl: uploadResult.secure_url },
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Thumbnail updated successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error updating thumbnail:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update categories and subcategories
+exports.updateCategories = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { categories, subCategories } = req.body;
+
+    const updates = {};
+    if (categories !== undefined) updates.categories = categories;
+    if (subCategories !== undefined) updates.subCategories = subCategories;
+
+    const publication = await Publication.findByIdAndUpdate(
+      id,
+      updates,
+      { new: true }
+    ).populate('categories subCategories languages validities');
+
+    if (!publication) {
+      return res.status(404).json({ message: 'Publication not found' });
+    }
+
+    return res.json({
+      message: 'Categories updated successfully',
+      data: publication
+    });
+  } catch (error) {
+    console.error('Error updating categories:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

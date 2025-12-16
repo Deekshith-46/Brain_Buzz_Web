@@ -5,6 +5,9 @@ const {
   getDailyQuizById,
   updateDailyQuiz,
   deleteDailyQuiz,
+  updateQuestion,
+  addQuestion,
+  deleteQuestion,
 } = require('../../controllers/Admin/dailyQuizController');
 const adminAuthMiddleware = require('../../middlewares/Admin/authMiddleware');
 
@@ -15,7 +18,12 @@ router.use(adminAuthMiddleware);
 router.post('/', createDailyQuiz);
 router.get('/', getDailyQuizzes);
 router.get('/:id', getDailyQuizById);
-router.put('/:id', updateDailyQuiz);
+router.patch('/:id', updateDailyQuiz);
 router.delete('/:id', deleteDailyQuiz);
+
+// Granular question APIs
+router.patch('/:quizId/questions/:questionId', updateQuestion);
+router.post('/:quizId/questions', addQuestion);
+router.delete('/:quizId/questions/:questionId', deleteQuestion);
 
 module.exports = router;

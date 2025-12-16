@@ -50,6 +50,10 @@ const classSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    isFree: {
+      type: Boolean,
+      default: false
+    },
     
   },
   { _id: true }
@@ -88,6 +92,11 @@ const courseSchema = new mongoose.Schema(
         'PYQ_EBOOK',
       ],
       default: 'ONLINE_COURSE',
+    },
+    accessType: {
+      type: String,
+      enum: ["FREE", "PAID"],
+      default: "PAID"
     },
     name: {
       type: String,
@@ -167,5 +176,30 @@ const courseSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Add a pre-save hook to validate categories and subcategories match the content type
+courseSchema.pre('save', async function(next) {
+  if (this.categories && this.categories.length > 0) {
+    const Category = require('./Category');
+    for (const categoryId of this.categories) {
+      const category = await Category.findById(categoryId);
+      if (category && category.contentType !== this.contentType) {
+        return next(new Error(`Category ${category.name} does not match content type ${this.contentType}`));
+      }
+    }
+  }
+  
+  if (this.subCategories && this.subCategories.length > 0) {
+    const SubCategory = require('./SubCategory');
+    for (const subCategoryId of this.subCategories) {
+      const subCategory = await SubCategory.findById(subCategoryId);
+      if (subCategory && subCategory.contentType !== this.contentType) {
+        return next(new Error(`SubCategory ${subCategory.name} does not match content type ${this.contentType}`));
+      }
+    }
+  }
+  
+  next();
+});
 
 module.exports = mongoose.model('Course', courseSchema);

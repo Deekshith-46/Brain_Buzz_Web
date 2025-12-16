@@ -112,7 +112,8 @@ if (discountType !== undefined && discountType !== '') {
       description,
       thumbnail,
       price: Number(price),
-      discount: discountData
+      discount: discountData,
+      accessType: "PAID"
     });
 
     return res.status(201).json({
@@ -322,6 +323,7 @@ exports.updateTestSeries = async (req, res) => {
     if (typeof maxTests !== 'undefined') updates.maxTests = maxTests;
     if (typeof description !== 'undefined') updates.description = description;
     if (typeof isActive !== 'undefined') updates.isActive = isActive;
+    if (typeof accessType !== 'undefined') updates.accessType = accessType;
     
     // Handle price update
     if (typeof price !== 'undefined') {
@@ -472,6 +474,14 @@ exports.addTestToSeries = async (req, res) => {
     };
 
     series.tests.push(newTest);
+    
+    // Auto-mark first 2 tests as free
+    if (series.tests && Array.isArray(series.tests)) {
+      series.tests.forEach((test, index) => {
+        test.isFree = index < 2;
+      });
+    }
+    
     await series.save();
 
     return res.status(201).json({

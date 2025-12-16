@@ -9,6 +9,7 @@ exports.listCurrentAffairs = async (req, res) => {
     const { category, subCategory, language, date, affairType } = req.query;
 
     const filter = {
+      contentType: 'CURRENT_AFFAIRS',
       isActive: true,
     };
 
@@ -78,6 +79,7 @@ exports.getCurrentAffairById = async (req, res) => {
 
     const doc = await CurrentAffair.findOne({
       _id: id,
+      contentType: 'CURRENT_AFFAIRS',
       isActive: true,
     })
       .populate('categories', 'name slug')
@@ -101,10 +103,14 @@ exports.getCurrentAffairById = async (req, res) => {
 exports.getCategoriesWithCurrentAffairs = async (req, res) => {
   try {
     // Get unique category IDs from all active current affairs
-    const categoryIds = await CurrentAffair.distinct('categories', { isActive: true });
+    const categoryIds = await CurrentAffair.distinct('categories', { 
+      contentType: 'CURRENT_AFFAIRS',
+      isActive: true 
+    });
     
     const categories = await Category.find({
       _id: { $in: categoryIds },
+      contentType: 'CURRENT_AFFAIRS',
       isActive: true
     }).select('name slug thumbnailUrl');
 
@@ -129,6 +135,7 @@ exports.getLanguagesByCategory = async (req, res) => {
 
     // Get unique language IDs for this category
     const currentAffairsInCategory = await CurrentAffair.find({
+      contentType: 'CURRENT_AFFAIRS',
       categories: categoryId,
       isActive: true
     }).select('languages');
@@ -174,6 +181,7 @@ exports.getSubCategoriesByCategory = async (req, res) => {
 
     // Find current affairs matching category and English language
     const currentAffairsInCategoryAndLanguage = await CurrentAffair.find({
+      contentType: 'CURRENT_AFFAIRS',
       categories: categoryId,
       languages: englishLanguage._id,
       isActive: true
@@ -229,6 +237,7 @@ exports.getSubCategoriesByLanguage = async (req, res) => {
 
     // Find current affairs matching category and language
     const currentAffairsInCategoryAndLanguage = await CurrentAffair.find({
+      contentType: 'CURRENT_AFFAIRS',
       categories: categoryId,
       languages: language._id,
       isActive: true
@@ -264,7 +273,10 @@ exports.getFilteredCurrentAffairs = async (req, res) => {
   try {
     const { categoryId, subCategoryId, lang, affairType, page = 1, limit = 20 } = req.query;
 
-    const filter = { isActive: true };
+    const filter = { 
+      contentType: 'CURRENT_AFFAIRS',
+      isActive: true 
+    };
 
     if (categoryId) filter.categories = categoryId;
     if (subCategoryId) filter.subCategories = subCategoryId;
@@ -320,7 +332,10 @@ exports.getAvailableAffairTypes = async (req, res) => {
   try {
     const { categoryId, subCategoryId, lang } = req.query;
     
-    const filter = { isActive: true };
+    const filter = { 
+      contentType: 'CURRENT_AFFAIRS',
+      isActive: true 
+    };
     if (categoryId) filter.categories = categoryId;
     if (subCategoryId) filter.subCategories = subCategoryId;
     

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userAuthMiddleware = require('../../middlewares/User/authMiddleware');
+const checkContentAccess = require('../../middlewares/checkContentAccess');
 const {
   startTest,
   submitAnswer,
@@ -9,7 +10,7 @@ const {
 } = require('../../controllers/User/testAttemptController');
 
 // Start Test
-router.post('/:seriesId/:testId/start', userAuthMiddleware, startTest);
+router.post('/:seriesId/:testId/start', userAuthMiddleware, checkContentAccess, startTest);
 
 // Submit Answer
 router.post('/:seriesId/:testId/submit-question', userAuthMiddleware, submitAnswer);

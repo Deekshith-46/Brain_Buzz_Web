@@ -1,5 +1,9 @@
 const User = require('../../models/User/User');
 const bcrypt = require('bcryptjs');
+const Purchase = require('../../models/Purchase/Purchase');
+const Course = require('../../models/Course/Course');
+const TestSeries = require('../../models/TestSeries/TestSeries');
+const Publication = require('../../models/Publication/Publication');
 
 // Create new user (registration via CRUD path)
 exports.createUser = async (req, res) => {
@@ -158,5 +162,136 @@ exports.deleteUserProfile = async (req, res) => {
   } catch (error) {
     console.error('Error deleting user:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get user's purchased courses
+exports.getMyCourses = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find purchases for this user
+    const purchases = await Purchase.find({ 
+      user: userId,
+      'items.contentType': 'ONLINE_COURSE'
+    }).populate('items.itemId');
+    
+    // Extract course IDs
+    const courseIds = purchases.flatMap(purchase => 
+      purchase.items
+        .filter(item => item.contentType === 'ONLINE_COURSE')
+        .map(item => item.itemId)
+    );
+    
+    // Get course details
+    const courses = await Course.find({
+      _id: { $in: courseIds }
+    });
+    
+    res.json({
+      success: true,
+      data: courses
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching courses',
+      error: error.message
+    });
+  }
+};
+
+// Get user's purchased test series
+exports.getMyTestSeries = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find purchases for this user
+    const purchases = await Purchase.find({ 
+      user: userId,
+      'items.contentType': 'TEST_SERIES'
+    }).populate('items.itemId');
+    
+    // Extract test series IDs
+    const testSeriesIds = purchases.flatMap(purchase => 
+      purchase.items
+        .filter(item => item.contentType === 'TEST_SERIES')
+        .map(item => item.itemId)
+    );
+    
+    // Get test series details
+    const testSeries = await TestSeries.find({
+      _id: { $in: testSeriesIds }
+    });
+    
+    res.json({
+      success: true,
+      data: testSeries
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching test series',
+      error: error.message
+    });
+  }
+};
+
+// Get user's purchased publications
+exports.getMyPublications = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find purchases for this user
+    const purchases = await Purchase.find({ 
+      user: userId,
+      'items.contentType': 'PUBLICATION'
+    }).populate('items.itemId');
+    
+    // Extract publication IDs
+    const publicationIds = purchases.flatMap(purchase => 
+      purchase.items
+        .filter(item => item.contentType === 'PUBLICATION')
+        .map(item => item.itemId)
+    );
+    
+    // Get publication details
+    const publications = await Publication.find({
+      _id: { $in: publicationIds }
+    });
+    
+    res.json({
+      success: true,
+      data: publications
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching publications',
+      error: error.message
+    });
+  }
+};
+
+// Get user's orders
+exports.getMyOrders = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find purchases for this user
+    const orders = await Purchase.find({ user: userId })
+      .populate('items.itemId')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: orders
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching orders',
+      error: error.message
+    });
   }
 };

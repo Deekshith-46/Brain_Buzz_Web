@@ -6,6 +6,7 @@ exports.listPublications = async (req, res) => {
     const { category, subCategory, language } = req.query;
 
     const filter = {
+      contentType: 'PUBLICATION',
       isActive: true,
     };
 
@@ -33,6 +34,7 @@ exports.getPublicationById = async (req, res) => {
 
     const publication = await Publication.findOne({
       _id: id,
+      contentType: 'PUBLICATION',
       isActive: true,
     })
       .populate('categories', 'name slug')
