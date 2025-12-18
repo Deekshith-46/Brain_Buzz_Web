@@ -45,9 +45,21 @@ const parseAffairPayload = (req) => {
 
 // Helper function to handle thumbnail upload
 const handleThumbnailUpload = async (req, folder) => {
+  // Handle both upload.single() and upload.fields() cases
+  let fileBuffer = null;
+  
+  // Case 1: upload.single('thumbnail') puts file in req.file
   if (req.file && req.file.buffer) {
+    fileBuffer = req.file.buffer;
+  }
+  // Case 2: upload.fields([{ name: 'thumbnail', maxCount: 1 }]) puts file in req.files.thumbnail[0]
+  else if (req.files && req.files.thumbnail && req.files.thumbnail[0] && req.files.thumbnail[0].buffer) {
+    fileBuffer = req.files.thumbnail[0].buffer;
+  }
+  
+  if (fileBuffer) {
     try {
-      const uploadResult = await uploadToCloudinary(req.file.buffer, folder, 'image');
+      const uploadResult = await uploadToCloudinary(fileBuffer, folder, 'image');
       return uploadResult.secure_url;
     } catch (error) {
       console.error('Error uploading thumbnail:', error);
@@ -211,15 +223,11 @@ exports.updateLatestCurrentAffair = async (req, res) => {
     if (typeof fullContent !== 'undefined') updates.fullContent = fullContent;
     if (typeof isActive !== 'undefined') updates.isActive = isActive;
 
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/current-affairs/latest/thumbnails',
-        'image'
-      );
-      updates.thumbnailUrl = uploadResult.secure_url;
-    }
+    const thumbnailUrl = await handleThumbnailUpload(
+      req,
+      'brainbuzz/current-affairs/latest/thumbnails'
+    );
+    if (thumbnailUrl) updates.thumbnailUrl = thumbnailUrl;
 
     const doc = await LatestCurrentAffair.findByIdAndUpdate(id, updates, {
       new: true,
@@ -426,15 +434,11 @@ exports.updateMonthlyCurrentAffair = async (req, res) => {
     if (typeof fullContent !== 'undefined') updates.fullContent = fullContent;
     if (typeof isActive !== 'undefined') updates.isActive = isActive;
 
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      const thumbFile = req.files.thumbnail[0];
-      const uploadResult = await uploadToCloudinary(
-        thumbFile.buffer,
-        'brainbuzz/current-affairs/monthly/thumbnails',
-        'image'
-      );
-      updates.thumbnailUrl = uploadResult.secure_url;
-    }
+    const thumbnailUrl = await handleThumbnailUpload(
+      req,
+      'brainbuzz/current-affairs/monthly/thumbnails'
+    );
+    if (thumbnailUrl) updates.thumbnailUrl = thumbnailUrl;
 
     const doc = await MonthlyCurrentAffair.findByIdAndUpdate(id, updates, {
       new: true,
@@ -490,7 +494,18 @@ exports.createSportsCurrentAffair = async (req, res) => {
     }
 
     // Required (based on your existing code)
-    const { sport = '', event = '', date } = payload;
+    const { 
+      sport = '', 
+      event = '', 
+      date,
+      categoryIds = [],
+      subCategoryIds = [],
+      languageIds = [],
+      description,
+      fullContent,
+      isActive
+    } = payload;
+    
     if (!sport || !event) {
       return res.status(400).json({
         success: false,
@@ -507,7 +522,7 @@ exports.createSportsCurrentAffair = async (req, res) => {
     }
 
     // Validate that only one language is selected (best practice)
-    if (payload.languageIds && payload.languageIds.length > 1) {
+    if (languageIds && languageIds.length > 1) {
       return res.status(400).json({
         success: false,
         message: 'Only one language should be selected per content entry (best practice)',
@@ -527,17 +542,31 @@ exports.createSportsCurrentAffair = async (req, res) => {
         error: error.message,
       });
     }
-    if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
 
-    payload.contentType = 'CURRENT_AFFAIRS';
-    payload.isActive = payload.isActive !== undefined ? payload.isActive : true;
+    const newSportsAffair = await SportsCurrentAffair.create({
+      date,
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      sport,
+      event,
+      description,
+      fullContent,
+      thumbnailUrl,
+      contentType: 'CURRENT_AFFAIRS',
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
+    });
 
-    const newSportsAffair = await SportsCurrentAffair.create(payload);
+    // Populate the response with related data
+    const populatedAffair = await SportsCurrentAffair.findById(newSportsAffair._id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code');
 
     return res.status(201).json({
       success: true,
       message: 'Sports current affair created successfully',
-      data: newSportsAffair,
+      data: populatedAffair,
     });
   } catch (error) {
     console.error('Error creating sports current affair:', error);
@@ -617,10 +646,10 @@ exports.getSportsCurrentAffairById = async (req, res) => {
 exports.updateSportsCurrentAffair = async (req, res) => {
   try {
     const { id } = req.params;
-    let updates;
+    let payload;
 
     try {
-      updates = parseAffairPayload(req);
+      payload = parseAffairPayload(req);
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -628,6 +657,18 @@ exports.updateSportsCurrentAffair = async (req, res) => {
         error: e.message,
       });
     }
+
+    // Map the IDs properly
+    const updates = {};
+    if (payload.date) updates.date = payload.date;
+    if (payload.categoryIds) updates.categories = payload.categoryIds;
+    if (payload.subCategoryIds) updates.subCategories = payload.subCategoryIds;
+    if (payload.languageIds) updates.languages = payload.languageIds;
+    if (payload.sport) updates.sport = payload.sport;
+    if (payload.event) updates.event = payload.event;
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.fullContent !== undefined) updates.fullContent = payload.fullContent;
+    if (payload.isActive !== undefined) updates.isActive = payload.isActive;
 
     const thumbnailUrl = await handleThumbnailUpload(
       req,
@@ -736,8 +777,21 @@ exports.createStateCurrentAffair = async (req, res) => {
       });
     }
 
+    // Extract fields with defaults
+    const { 
+      state,
+      name,
+      date,
+      categoryIds = [],
+      subCategoryIds = [],
+      languageIds = [],
+      description,
+      fullContent,
+      isActive
+    } = payload;
+
     // Validate that only one language is selected (best practice)
-    if (payload.languageIds && payload.languageIds.length > 1) {
+    if (languageIds && languageIds.length > 1) {
       return res.status(400).json({
         success: false,
         message: 'Only one language should be selected per content entry (best practice)',
@@ -757,12 +811,22 @@ exports.createStateCurrentAffair = async (req, res) => {
         error: error.message,
       });
     }
-    if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
 
-    payload.affairType = 'StateCurrentAffair';
-    payload.isActive = payload.isActive !== undefined ? payload.isActive : true;
-
-    const newAffair = await StateCurrentAffair.create(payload);
+    const newAffair = await StateCurrentAffair.create({
+      state,
+      name,
+      date,
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      description,
+      fullContent,
+      thumbnailUrl,
+      affairType: 'StateCurrentAffair',
+      contentType: 'CURRENT_AFFAIRS',
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
+    });
+    
     const populatedAffair = await StateCurrentAffair.findById(newAffair._id)
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
@@ -873,10 +937,10 @@ exports.getStateCurrentAffairById = async (req, res) => {
 exports.updateStateCurrentAffair = async (req, res) => {
   try {
     const { id } = req.params;
-    let updateData;
+    let payload;
 
     try {
-      updateData = parseAffairPayload(req);
+      payload = parseAffairPayload(req);
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -885,15 +949,27 @@ exports.updateStateCurrentAffair = async (req, res) => {
       });
     }
 
+    // Map the IDs properly
+    const updates = {};
+    if (payload.date) updates.date = payload.date;
+    if (payload.categoryIds) updates.categories = payload.categoryIds;
+    if (payload.subCategoryIds) updates.subCategories = payload.subCategoryIds;
+    if (payload.languageIds) updates.languages = payload.languageIds;
+    if (payload.state) updates.state = payload.state;
+    if (payload.name) updates.name = payload.name;
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.fullContent !== undefined) updates.fullContent = payload.fullContent;
+    if (payload.isActive !== undefined) updates.isActive = payload.isActive;
+
     const thumbnailUrl = await handleThumbnailUpload(
       req,
       'brainbuzz/current-affairs/state/thumbnails'
     );
-    if (thumbnailUrl) updateData.thumbnailUrl = thumbnailUrl;
+    if (thumbnailUrl) updates.thumbnailUrl = thumbnailUrl;
 
     const updatedAffair = await StateCurrentAffair.findByIdAndUpdate(
       id,
-      { $set: updateData },
+      { $set: updates },
       { new: true, runValidators: true }
     )
       .populate('categories', 'name slug')
@@ -974,20 +1050,79 @@ exports.createInternationalCurrentAffair = async (req, res) => {
       });
     }
 
-    const thumbnailUrl = await handleThumbnailUpload(
-      req,
-      'brainbuzz/current-affairs/international/thumbnails'
-    );
-    if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
+    // Extract fields with defaults
+    const { 
+      categoryIds = [],
+      subCategoryIds = [],
+      languageIds = [],
+      description,
+      fullContent,
+      isActive,
+      date,
+      region,
+      name
+    } = payload;
 
-    payload.isActive = payload.isActive !== undefined ? payload.isActive : true;
+    // Validate that only one language is selected (best practice)
+    if (languageIds && languageIds.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only one language should be selected per content entry (best practice)',
+      });
+    }
 
-    const doc = await InternationalCurrentAffair.create(payload);
+    // Validate required fields
+    if (!region) {
+      return res.status(400).json({
+        success: false,
+        message: 'Region is required',
+      });
+    }
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required',
+      });
+    }
+
+    let thumbnailUrl;
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/international/thumbnails'
+      );
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload thumbnail',
+        error: error.message,
+      });
+    }
+
+    const doc = await InternationalCurrentAffair.create({
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      description,
+      fullContent,
+      thumbnailUrl,
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
+      date,
+      region,
+      name
+    });
+
+    // Populate the response with related data
+    const populatedAffair = await InternationalCurrentAffair.findById(doc._id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code');
 
     return res.status(201).json({
       success: true,
       message: 'International current affair created successfully',
-      data: doc,
+      data: populatedAffair,
     });
   } catch (error) {
     console.error('Error creating international current affair:', error);
@@ -1069,10 +1204,10 @@ exports.getInternationalCurrentAffairById = async (req, res) => {
 exports.updateInternationalCurrentAffair = async (req, res) => {
   try {
     const { id } = req.params;
-    let updates;
+    let payload;
 
     try {
-      updates = parseAffairPayload(req);
+      payload = parseAffairPayload(req);
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -1080,6 +1215,18 @@ exports.updateInternationalCurrentAffair = async (req, res) => {
         error: e.message,
       });
     }
+
+    // Map the IDs properly
+    const updates = {};
+    if (payload.date) updates.date = payload.date;
+    if (payload.categoryIds) updates.categories = payload.categoryIds;
+    if (payload.subCategoryIds) updates.subCategories = payload.subCategoryIds;
+    if (payload.languageIds) updates.languages = payload.languageIds;
+    if (payload.region) updates.region = payload.region;
+    if (payload.name) updates.name = payload.name;
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.fullContent !== undefined) updates.fullContent = payload.fullContent;
+    if (payload.isActive !== undefined) updates.isActive = payload.isActive;
 
     const thumbnailUrl = await handleThumbnailUpload(
       req,
@@ -1167,20 +1314,72 @@ exports.createPoliticsCurrentAffair = async (req, res) => {
       });
     }
 
-    const thumbnailUrl = await handleThumbnailUpload(
-      req,
-      'brainbuzz/current-affairs/politics/thumbnails'
-    );
-    if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
+    // Extract fields with defaults
+    const { 
+      categoryIds = [],
+      subCategoryIds = [],
+      languageIds = [],
+      description,
+      fullContent,
+      isActive,
+      date,
+      name,
+      politicalParty
+    } = payload;
 
-    payload.isActive = payload.isActive !== undefined ? payload.isActive : true;
+    // Validate that only one language is selected (best practice)
+    if (languageIds && languageIds.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only one language should be selected per content entry (best practice)',
+      });
+    }
 
-    const doc = await PoliticsCurrentAffair.create(payload);
+    // Validate required field
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required',
+      });
+    }
+
+    let thumbnailUrl;
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/politics/thumbnails'
+      );
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload thumbnail',
+        error: error.message,
+      });
+    }
+
+    const doc = await PoliticsCurrentAffair.create({
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      description,
+      fullContent,
+      thumbnailUrl,
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
+      date,
+      name,
+      politicalParty
+    });
+
+    // Populate the response with related data
+    const populatedAffair = await PoliticsCurrentAffair.findById(doc._id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code');
 
     return res.status(201).json({
       success: true,
       message: 'Politics current affair created successfully',
-      data: doc,
+      data: populatedAffair,
     });
   } catch (error) {
     console.error('Error creating politics current affair:', error);
@@ -1262,10 +1461,10 @@ exports.getPoliticsCurrentAffairById = async (req, res) => {
 exports.updatePoliticsCurrentAffair = async (req, res) => {
   try {
     const { id } = req.params;
-    let updates;
+    let payload;
 
     try {
-      updates = parseAffairPayload(req);
+      payload = parseAffairPayload(req);
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -1273,6 +1472,18 @@ exports.updatePoliticsCurrentAffair = async (req, res) => {
         error: e.message,
       });
     }
+
+    // Map the IDs properly
+    const updates = {};
+    if (payload.date) updates.date = payload.date;
+    if (payload.categoryIds) updates.categories = payload.categoryIds;
+    if (payload.subCategoryIds) updates.subCategories = payload.subCategoryIds;
+    if (payload.languageIds) updates.languages = payload.languageIds;
+    if (payload.name) updates.name = payload.name;
+    if (payload.politicalParty) updates.politicalParty = payload.politicalParty;
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.fullContent !== undefined) updates.fullContent = payload.fullContent;
+    if (payload.isActive !== undefined) updates.isActive = payload.isActive;
 
     const thumbnailUrl = await handleThumbnailUpload(
       req,
@@ -1360,20 +1571,79 @@ exports.createLocalCurrentAffair = async (req, res) => {
       });
     }
 
-    const thumbnailUrl = await handleThumbnailUpload(
-      req,
-      'brainbuzz/current-affairs/local/thumbnails'
-    );
-    if (thumbnailUrl) payload.thumbnailUrl = thumbnailUrl;
+    // Extract fields with defaults
+    const { 
+      categoryIds = [],
+      subCategoryIds = [],
+      languageIds = [],
+      description,
+      fullContent,
+      isActive,
+      date,
+      name,
+      location
+    } = payload;
 
-    payload.isActive = payload.isActive !== undefined ? payload.isActive : true;
+    // Validate that only one language is selected (best practice)
+    if (languageIds && languageIds.length > 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only one language should be selected per content entry (best practice)',
+      });
+    }
 
-    const doc = await LocalCurrentAffair.create(payload);
+    // Validate required fields
+    if (!location) {
+      return res.status(400).json({
+        success: false,
+        message: 'Location is required',
+      });
+    }
+    
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name is required',
+      });
+    }
+
+    let thumbnailUrl;
+    try {
+      thumbnailUrl = await handleThumbnailUpload(
+        req,
+        'brainbuzz/current-affairs/local/thumbnails'
+      );
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload thumbnail',
+        error: error.message,
+      });
+    }
+
+    const doc = await LocalCurrentAffair.create({
+      categories: categoryIds,
+      subCategories: subCategoryIds,
+      languages: languageIds,
+      description,
+      fullContent,
+      thumbnailUrl,
+      isActive: typeof isActive !== 'undefined' ? isActive : true,
+      date,
+      name,
+      location
+    });
+
+    // Populate the response with related data
+    const populatedAffair = await LocalCurrentAffair.findById(doc._id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code');
 
     return res.status(201).json({
       success: true,
       message: 'Local current affair created successfully',
-      data: doc,
+      data: populatedAffair,
     });
   } catch (error) {
     console.error('Error creating local current affair:', error);
@@ -1455,10 +1725,10 @@ exports.getLocalCurrentAffairById = async (req, res) => {
 exports.updateLocalCurrentAffair = async (req, res) => {
   try {
     const { id } = req.params;
-    let updates;
+    let payload;
 
     try {
-      updates = parseAffairPayload(req);
+      payload = parseAffairPayload(req);
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -1466,6 +1736,18 @@ exports.updateLocalCurrentAffair = async (req, res) => {
         error: e.message,
       });
     }
+
+    // Map the IDs properly
+    const updates = {};
+    if (payload.date) updates.date = payload.date;
+    if (payload.categoryIds) updates.categories = payload.categoryIds;
+    if (payload.subCategoryIds) updates.subCategories = payload.subCategoryIds;
+    if (payload.languageIds) updates.languages = payload.languageIds;
+    if (payload.name) updates.name = payload.name;
+    if (payload.location) updates.location = payload.location;
+    if (payload.description !== undefined) updates.description = payload.description;
+    if (payload.fullContent !== undefined) updates.fullContent = payload.fullContent;
+    if (payload.isActive !== undefined) updates.isActive = payload.isActive;
 
     const thumbnailUrl = await handleThumbnailUpload(
       req,

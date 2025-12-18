@@ -1169,7 +1169,7 @@ Form Fields:
 }
 ```
 
-### 3. Get Politics Current Affair By ID
+### 3.  
 
 **Endpoint:** `GET /api/admin/current-affairs/politics/:id`
 
