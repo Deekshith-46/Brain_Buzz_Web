@@ -5,6 +5,14 @@ const morgan = require('morgan');
 require('./models/TestSeries/TestSeries');
 require('./models/Order/Order');
 
+// Load PYQ models
+require('./models/Course/Exam');
+require('./models/Course/Subject');
+require('./models/Course/PreviousQuestionPaper');
+
+// Load Banner model
+require('./models/Banner');
+
 const adminRoutes = require('./routes/Admin/adminRoutes');
 const adminAuthRoutes = require('./routes/Admin/authRoutes');
 const adminCategoryRoutes = require('./routes/Admin/categoryRoutes');
@@ -37,6 +45,12 @@ const userCouponRoutes = require('./routes/User/couponRoutes');
 
 const paymentRoutes = require('./routes/User/paymentRoutes');
 const orderRoutes = require('./routes/User/orderRoutes');
+
+// PYQ Routes
+const adminExamRoutes = require('./routes/Admin/examRoutes');
+const adminSubjectRoutes = require('./routes/Admin/subjectRoutes');
+const adminPYQRoutes = require('./routes/Admin/pyqRoutes');
+const userPYQRoutes = require('./routes/User/pyqRoutes');
 
 const app = express();
 
@@ -82,5 +96,17 @@ app.use('/api/v1/live-classes', userLiveClassRoutes);
 app.use('/api/v1/coupons', userCouponRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/orders', orderRoutes);
+
+// PYQ Routes
+app.use('/api/admin/exams', adminExamRoutes);
+app.use('/api/admin/subjects', adminSubjectRoutes);
+app.use('/api/admin/previous-question-papers', adminPYQRoutes);
+app.use('/api/v1/previous-question-papers', userPYQRoutes);
+
+// Banner Routes
+const adminBannerRoutes = require('./routes/Admin/bannerRoutes');
+const userBannerRoutes = require('./routes/User/bannerRoutes');
+app.use('/api/admin/banners', adminBannerRoutes);
+app.use('/api/public', userBannerRoutes);
 
 module.exports = app;

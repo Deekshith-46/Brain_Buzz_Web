@@ -34,7 +34,8 @@ const subCategorySchema = new mongoose.Schema(
         'LIVE_CLASS',
         'PUBLICATION',
         'E_BOOK',
-        'CURRENT_AFFAIRS'
+        'CURRENT_AFFAIRS',
+        'PYQ_EBOOK'
       ],
       required: true
     },
