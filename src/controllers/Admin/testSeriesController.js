@@ -20,7 +20,7 @@ const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
 // Create Test Series (basic info + maxTests)
 exports.createTestSeries = async (req, res) => {
   try {
-    const {
+    let {
       date,
       categoryIds = [],
       subCategoryIds = [],
@@ -30,8 +30,57 @@ exports.createTestSeries = async (req, res) => {
       price = 0,
       discountType,
       discountValue,
-      discountValidUntil
+      discountValidUntil,
+      language,
+      validity
     } = req.body;
+
+    // Parse categoryIds if it's a JSON string
+    if (typeof categoryIds === 'string') {
+      try {
+        categoryIds = JSON.parse(categoryIds);
+      } catch (e) {
+        // If parsing fails, treat as a single ID
+        categoryIds = [categoryIds];
+      }
+    }
+
+    // Parse subCategoryIds if it's a JSON string
+    if (typeof subCategoryIds === 'string') {
+      try {
+        subCategoryIds = JSON.parse(subCategoryIds);
+      } catch (e) {
+        // If parsing fails, treat as a single ID
+        subCategoryIds = [subCategoryIds];
+      }
+    }
+
+    // Ensure categoryIds and subCategoryIds are arrays
+    if (!Array.isArray(categoryIds)) {
+      categoryIds = [categoryIds];
+    }
+    
+    if (!Array.isArray(subCategoryIds)) {
+      subCategoryIds = [subCategoryIds];
+    }
+
+    // Parse language if it's a JSON string
+    if (typeof language === 'string') {
+      try {
+        language = JSON.parse(language);
+      } catch (e) {
+        // Keep as is if parsing fails
+      }
+    }
+
+    // Parse validity if it's a JSON string
+    if (typeof validity === 'string') {
+      try {
+        validity = JSON.parse(validity);
+      } catch (e) {
+        // Keep as is if parsing fails
+      }
+    }
 
     if (!name) {
       return res.status(400).json({ 
@@ -105,14 +154,16 @@ if (discountType !== undefined && discountType !== '') {
 
     const series = await TestSeries.create({
       date,
-      categories: Array.isArray(categoryIds) ? categoryIds : [categoryIds].filter(Boolean),
-      subCategories: Array.isArray(subCategoryIds) ? subCategoryIds : [subCategoryIds].filter(Boolean),
+      categories: Array.isArray(categoryIds) ? categoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [categoryIds].filter(Boolean),
+      subCategories: Array.isArray(subCategoryIds) ? subCategoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [subCategoryIds].filter(Boolean),
       name,
       maxTests,
       description,
       thumbnail,
       price: Number(price),
       discount: discountData,
+      language: language && language !== 'null' && language !== 'undefined' ? language : undefined,
+      validity: validity && validity !== 'null' && validity !== 'undefined' ? validity : undefined,
       accessType: "PAID"
     });
 
@@ -138,7 +189,9 @@ exports.getFullTestSeries = async (req, res) => {
 
     const series = await TestSeries.findById(id)
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     if (!series) {
       return res.status(404).json({ message: 'Test Series not found' });
@@ -211,7 +264,9 @@ exports.getTestSeriesList = async (req, res) => {
 
     const seriesList = await TestSeries.find(filter)
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     console.log(`Admin - Found ${seriesList.length} test series`);
 
@@ -260,7 +315,9 @@ exports.getTestSeriesById = async (req, res) => {
 
     const series = await TestSeries.findById(id)
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     if (!series) {
       return res.status(404).json({ message: 'Test Series not found' });
@@ -300,7 +357,7 @@ exports.getTestSeriesById = async (req, res) => {
 exports.updateTestSeries = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
+    let {
       date,
       categoryIds,
       subCategoryIds,
@@ -311,19 +368,70 @@ exports.updateTestSeries = async (req, res) => {
       price,
       discountType,
       discountValue,
-      discountValidUntil
+      discountValidUntil,
+      language,
+      validity
     } = req.body;
+
+    // Parse categoryIds if provided and it's a JSON string
+    if (categoryIds && typeof categoryIds === 'string') {
+      try {
+        categoryIds = JSON.parse(categoryIds);
+      } catch (e) {
+        // If parsing fails, treat as a single ID
+        categoryIds = [categoryIds];
+      }
+    }
+
+    // Parse subCategoryIds if provided and it's a JSON string
+    if (subCategoryIds && typeof subCategoryIds === 'string') {
+      try {
+        subCategoryIds = JSON.parse(subCategoryIds);
+      } catch (e) {
+        // If parsing fails, treat as a single ID
+        subCategoryIds = [subCategoryIds];
+      }
+    }
+
+    // Ensure categoryIds and subCategoryIds are arrays if provided
+    if (categoryIds && !Array.isArray(categoryIds)) {
+      categoryIds = [categoryIds];
+    }
+    
+    if (subCategoryIds && !Array.isArray(subCategoryIds)) {
+      subCategoryIds = [subCategoryIds];
+    }
+
+    // Parse language if provided and it's a JSON string
+    if (language && typeof language === 'string') {
+      try {
+        language = JSON.parse(language);
+      } catch (e) {
+        // Keep as is if parsing fails
+      }
+    }
+
+    // Parse validity if provided and it's a JSON string
+    if (validity && typeof validity === 'string') {
+      try {
+        validity = JSON.parse(validity);
+      } catch (e) {
+        // Keep as is if parsing fails
+      }
+    }
 
     const updates = {};
 
     if (date) updates.date = date;
-    if (categoryIds) updates.categories = Array.isArray(categoryIds) ? categoryIds : [categoryIds].filter(Boolean);
-    if (subCategoryIds) updates.subCategories = Array.isArray(subCategoryIds) ? subCategoryIds : [subCategoryIds].filter(Boolean);
+    if (categoryIds) updates.categories = Array.isArray(categoryIds) ? categoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [categoryIds].filter(Boolean);
+    if (subCategoryIds) updates.subCategories = Array.isArray(subCategoryIds) ? subCategoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [subCategoryIds].filter(Boolean);
     if (name) updates.name = name;
     if (typeof maxTests !== 'undefined') updates.maxTests = maxTests;
     if (typeof description !== 'undefined') updates.description = description;
     if (typeof isActive !== 'undefined') updates.isActive = isActive;
     if (typeof accessType !== 'undefined') updates.accessType = accessType;
+    if (typeof language !== 'undefined') updates.language = language && language !== 'null' && language !== 'undefined' ? language : undefined;
+    if (typeof validity !== 'undefined') updates.validity = validity && validity !== 'null' && validity !== 'undefined' ? validity : undefined;
     
     // Handle price update
     if (typeof price !== 'undefined') {
@@ -393,7 +501,9 @@ if (discountType !== undefined) {
       { new: true, runValidators: true }
     )
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     if (!series) {
       return res.status(404).json({ 
@@ -475,12 +585,9 @@ exports.addTestToSeries = async (req, res) => {
 
     series.tests.push(newTest);
     
-    // Auto-mark first 2 tests as free
-    if (series.tests && Array.isArray(series.tests)) {
-      series.tests.forEach((test, index) => {
-        test.isFree = index < 2;
-      });
-    }
+    // Auto-mark first 2 tests as free based on their position
+    const testIndex = series.tests.length - 1; // Index of the newly added test
+    series.tests[testIndex].isFree = testIndex < 2;
     
     await series.save();
 
@@ -490,6 +597,65 @@ exports.addTestToSeries = async (req, res) => {
     });
   } catch (error) {
     console.error('Error adding Test to Series:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Add multiple Tests to a Test Series (Bulk Upload)
+exports.bulkAddTestsToSeries = async (req, res) => {
+  try {
+    const { seriesId } = req.params;
+    const { tests } = req.body;
+
+    const series = await TestSeries.findById(seriesId);
+
+    if (!series) {
+      return res.status(404).json({ message: 'Test Series not found' });
+    }
+
+    // Validate tests array
+    if (!Array.isArray(tests) || tests.length === 0) {
+      return res.status(400).json({
+        message: 'Tests array is required and cannot be empty'
+      });
+    }
+
+    // Check if adding these tests would exceed maxTests limit
+    if (series.tests.length + tests.length > series.maxTests) {
+      return res.status(400).json({
+        message: `Cannot add ${tests.length} tests. You would exceed the maximum number of tests (${series.maxTests}) for this series.`
+      });
+    }
+
+    // Add all tests
+    const newTests = [];
+    for (let i = 0; i < tests.length; i++) {
+      const test = tests[i];
+      
+      // Skip isFree field to prevent manual override
+      const { isFree, ...testData } = test;
+      
+      const newTest = {
+        ...testData
+      };
+      
+      series.tests.push(newTest);
+      
+      // Auto-mark first 2 tests as free based on their position
+      const testIndex = series.tests.length - 1; // Index of the newly added test
+      series.tests[testIndex].isFree = testIndex < 2;
+      
+      newTests.push(series.tests[testIndex]);
+    }
+
+    await series.save();
+
+    return res.status(201).json({
+      message: `${tests.length} tests added to series successfully`,
+      data: series,
+    });
+  } catch (error) {
+    console.error('Error adding Tests to Series:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -510,8 +676,11 @@ exports.updateTestInSeries = async (req, res) => {
       return res.status(404).json({ message: 'Test not found in this series' });
     }
 
-    Object.keys(updates).forEach((key) => {
-      test[key] = updates[key];
+    // Remove isFree from updates to prevent manual override
+    const { isFree, ...allowedUpdates } = updates;
+    
+    Object.keys(allowedUpdates).forEach((key) => {
+      test[key] = allowedUpdates[key];
     });
 
     await series.save();
@@ -815,6 +984,28 @@ exports.addQuestionToSection = async (req, res) => {
       });
     }
 
+    // Check for duplicate question numbers
+    const existingQuestionNumbers = section.questions.map(q => q.questionNumber);
+    const newQuestionNumbers = questionsPayload.map(q => q.questionNumber);
+    
+    // Check if any new question numbers already exist
+    const duplicates = newQuestionNumbers.filter(num => existingQuestionNumbers.includes(num));
+    if (duplicates.length > 0) {
+      return res.status(400).json({
+        message: 'Duplicate question numbers found in section',
+        duplicates
+      });
+    }
+    
+    // Check if new question numbers have duplicates among themselves
+    const duplicateInNew = newQuestionNumbers.filter((num, index) => newQuestionNumbers.indexOf(num) !== index);
+    if (duplicateInNew.length > 0) {
+      return res.status(400).json({
+        message: 'Duplicate question numbers found in the new questions',
+        duplicates: duplicateInNew
+      });
+    }
+
     questionsPayload.forEach((q) => {
       section.questions.push({
         questionNumber: q.questionNumber,
@@ -901,12 +1092,8 @@ exports.deleteQuestionFromSection = async (req, res) => {
       return res.status(404).json({ message: 'Section not found in this test' });
     }
 
-    const question = section.questions.id(questionId);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found in this section' });
-    }
-
-    question.remove();
+    // Use pull method to remove the question by its ID
+    section.questions.pull(questionId);
     await series.save();
 
     return res.status(200).json({

@@ -67,6 +67,7 @@ exports.upsertBanner = async (req, res) => {
         const uploadResults = await Promise.all(uploadPromises);
         // Generate unique IDs for each image and store as objects
         images = uploadResults.map((result, index) => ({
+          _id: `${Date.now()}${Math.random().toString(36).substr(2, 9)}-${index}`,
           id: `${Date.now()}-${index}`,
           url: result.secure_url
         }));
@@ -223,12 +224,12 @@ exports.updateBannerImage = async (req, res) => {
     }
 
     // Find and update the specific image
-    const imageIndex = banner.images.findIndex(img => img.id === imageId);
+    const imageIndex = banner.images.findIndex(img => img._id === imageId);
     
     if (imageIndex === -1) {
       return res.status(404).json({ 
         success: false, 
-        message: `Image with ID ${imageId} not found` 
+        message: `Image with _id ${imageId} not found` 
       });
     }
 

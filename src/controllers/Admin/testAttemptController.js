@@ -234,6 +234,14 @@ exports.getParticipants = async (req, res) => {
       });
     }
 
+    // Check if result publish time has passed
+    if (test.resultPublishTime && new Date() < new Date(test.resultPublishTime)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Test result not yet published'
+      });
+    }
+
     // Get all rankings for this test
     const rankings = await TestRanking.find({ testId: testId })
       .populate('user', 'name email')

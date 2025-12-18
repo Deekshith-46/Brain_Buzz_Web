@@ -9,6 +9,7 @@ const {
   updateTestSeries,
   deleteTestSeries,
   addTestToSeries,
+  bulkAddTestsToSeries,
   getTestInSeries,
   updateTestInSeries,
   deleteTestFromSeries,
@@ -21,6 +22,14 @@ const {
   updateQuestionInSection,
   deleteQuestionFromSection,
 } = require('../../controllers/Admin/testSeriesController');
+
+const {
+  setCutoff,
+  getCutoff,
+  updateCutoff,
+  deleteCutoff,
+  getParticipants
+} = require('../../controllers/Admin/testAttemptController');
 
 const router = express.Router();
 
@@ -45,6 +54,7 @@ router.delete('/:id', deleteTestSeries);
 
 // Tests within a series
 router.post('/:seriesId/tests', addTestToSeries);
+router.post('/:seriesId/tests/bulk', bulkAddTestsToSeries);
 router.get('/:seriesId/tests/:testId', getTestInSeries);
 router.put('/:seriesId/tests/:testId', updateTestInSeries);
 router.delete('/:seriesId/tests/:testId', deleteTestFromSeries);
@@ -77,5 +87,14 @@ router.delete(
   '/:seriesId/tests/:testId/sections/:sectionId/questions/:questionId',
   deleteQuestionFromSection
 );
+
+// Cutoff management for Test
+router.post('/:seriesId/tests/:testId/cutoff', setCutoff);
+router.get('/:seriesId/tests/:testId/cutoff', getCutoff);
+router.put('/:seriesId/tests/:testId/cutoff', updateCutoff);
+router.delete('/:seriesId/tests/:testId/cutoff', deleteCutoff);
+
+// View all participants score, rank, accuracy
+router.get('/:seriesId/tests/:testId/participants', getParticipants);
 
 module.exports = router;

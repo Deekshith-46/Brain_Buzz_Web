@@ -19,6 +19,42 @@ const checkTestSeriesAccess = async (userId, seriesId) => {
   return !!purchase;
 };
 
+// Helper to determine test state based on timing
+const getTestState = (test) => {
+  const now = new Date();
+  
+  // If no timing information, return unknown state
+  if (!test.startTime || !test.endTime) {
+    return 'unknown';
+  }
+  
+  const startTime = new Date(test.startTime);
+  const endTime = new Date(test.endTime);
+  const resultPublishTime = test.resultPublishTime ? new Date(test.resultPublishTime) : null;
+  
+  // Before startTime
+  if (now < startTime) {
+    return 'upcoming';
+  }
+  
+  // During test
+  if (now >= startTime && now <= endTime) {
+    return 'live';
+  }
+  
+  // After endTime but before resultPublishTime
+  if (resultPublishTime && now > endTime && now < resultPublishTime) {
+    return 'result_pending';
+  }
+  
+  // After resultPublishTime or if no resultPublishTime, after endTime
+  if (!resultPublishTime || now >= resultPublishTime) {
+    return 'results_available';
+  }
+  
+  return 'unknown';
+};
+
 // List all test series (public)
 exports.listPublicTestSeries = async (req, res) => {
   try {
@@ -55,9 +91,11 @@ exports.listPublicTestSeries = async (req, res) => {
     console.log(`Total test series in DB: ${totalCount}, Active/Missing isActive: ${activeCount}, Inactive: ${inactiveCount}`);
     
     const seriesList = await TestSeries.find(filter)
-      .select('name description thumbnail date maxTests tests categories subCategories isActive')
+      .select('name description thumbnail date maxTests tests categories subCategories isActive language validity')
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     console.log(`Found ${seriesList.length} test series matching filter`);
 
@@ -75,6 +113,8 @@ exports.listPublicTestSeries = async (req, res) => {
         testsCount: series.tests?.length || 0,
         categories: series.categories,
         subCategories: series.subCategories,
+        language: series.language,
+        validity: series.validity,
         hasAccess
       };
     }));
@@ -106,7 +146,9 @@ exports.getPublicTestSeriesById = async (req, res) => {
 
     const series = await TestSeries.findOne({ _id: seriesId, contentType: 'TEST_SERIES', isActive: true })
       .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug');
+      .populate('subCategories', 'name slug')
+      .populate('language', 'name code')
+      .populate('validity', 'label durationInDays');
 
     if (!series) {
       return res.status(404).json({ 
@@ -142,6 +184,8 @@ exports.getPublicTestSeriesById = async (req, res) => {
         maxTests: series.maxTests,
         categories: series.categories,
         subCategories: series.subCategories,
+        language: series.language,
+        validity: series.validity,
         tests,
         hasAccess
       }
@@ -195,6 +239,9 @@ exports.getPublicTestInSeries = async (req, res) => {
       );
     }
 
+    // Determine test state
+    const testState = getTestState(test);
+    
     // Prepare basic test data (available to everyone)
     const testData = {
       _id: test._id,
@@ -208,6 +255,8 @@ exports.getPublicTestInSeries = async (req, res) => {
       date: test.date,
       startTime: test.startTime,
       endTime: test.endTime,
+      resultPublishTime: test.resultPublishTime,
+      testState, // Add test state
       hasAccess
     };
 
@@ -298,6 +347,9 @@ exports.getPublicTestInSeriesPublic = async (req, res) => {
       });
     }
 
+    // Determine test state
+    const testState = getTestState(test);
+    
     // Prepare basic test data (no authentication required)
     const testData = {
       _id: test._id,
@@ -308,6 +360,8 @@ exports.getPublicTestInSeriesPublic = async (req, res) => {
       date: test.date,
       startTime: test.startTime,
       endTime: test.endTime,
+      resultPublishTime: test.resultPublishTime,
+      testState, // Add test state
       hasAccess: false, // Always false for public access
       sections: (test.sections || []).map(section => ({
         _id: section._id,

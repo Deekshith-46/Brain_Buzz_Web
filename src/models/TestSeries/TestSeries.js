@@ -175,6 +175,14 @@ const testSeriesSchema = new Schema(
       default: null
     }
   },
+    language: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Language',
+    },
+    validity: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ValidityOption',
+    },
     tests: [testSchema],
     isActive: {
       type: Boolean,

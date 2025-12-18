@@ -4,6 +4,42 @@ const TestRanking = require('../../models/TestSeries/TestRanking');
 const Cutoff = require('../../models/TestSeries/Cutoff');
 const User = require('../../models/User/User');
 
+// Helper to determine test state based on timing
+const getTestState = (test) => {
+  const now = new Date();
+  
+  // If no timing information, return unknown state
+  if (!test.startTime || !test.endTime) {
+    return 'unknown';
+  }
+  
+  const startTime = new Date(test.startTime);
+  const endTime = new Date(test.endTime);
+  const resultPublishTime = test.resultPublishTime ? new Date(test.resultPublishTime) : null;
+  
+  // Before startTime
+  if (now < startTime) {
+    return 'upcoming';
+  }
+  
+  // During test
+  if (now >= startTime && now <= endTime) {
+    return 'live';
+  }
+  
+  // After endTime but before resultPublishTime
+  if (resultPublishTime && now > endTime && now < resultPublishTime) {
+    return 'result_pending';
+  }
+  
+  // After resultPublishTime or if no resultPublishTime, after endTime
+  if (!resultPublishTime || now >= resultPublishTime) {
+    return 'results_available';
+  }
+  
+  return 'unknown';
+};
+
 // Start Test
 exports.startTest = async (req, res) => {
   try {
@@ -16,6 +52,32 @@ exports.startTest = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'You do not have access to this test series'
+      });
+    }
+
+    // Find the test series and the specific test
+    const testSeries = await TestSeries.findById(seriesId);
+    if (!testSeries) {
+      return res.status(404).json({
+        success: false,
+        message: 'Test series not found'
+      });
+    }
+
+    const test = testSeries.tests.id(testId);
+    if (!test) {
+      return res.status(404).json({
+        success: false,
+        message: 'Test not found in this series'
+      });
+    }
+
+    // Check test state
+    const testState = getTestState(test);
+    if (testState !== 'live') {
+      return res.status(400).json({
+        success: false,
+        message: `Test is not available. Current state: ${testState}`
       });
     }
 
@@ -130,6 +192,15 @@ exports.submitAnswer = async (req, res) => {
       });
     }
 
+    // Check test state
+    const testState = getTestState(test);
+    if (testState !== 'live') {
+      return res.status(400).json({
+        success: false,
+        message: `Test is not available. Current state: ${testState}`
+      });
+    }
+
     // Find the section and question
     let question = null;
     let section = null;
@@ -241,6 +312,15 @@ exports.submitTest = async (req, res) => {
       });
     }
 
+    // Check test state
+    const testState = getTestState(test);
+    if (testState !== 'live') {
+      return res.status(400).json({
+        success: false,
+        message: `Test is not available. Current state: ${testState}`
+      });
+    }
+
     // Calculate results
     const totalQuestions = test.sections.reduce((total, section) => {
       return total + (section.questions ? section.questions.length : 0);
@@ -276,15 +356,15 @@ exports.submitTest = async (req, res) => {
     const accuracy = correct + incorrect > 0 ? (correct / (correct + incorrect)) * 100 : 0;
 
     // Calculate time taken and speed
-    const timeTakenMs = testAttempt.endedAt ? 
-      new Date(testAttempt.endedAt).getTime() - new Date(testAttempt.startedAt).getTime() :
+    const timeTakenMs = testAttempt.submittedAt ? 
+      new Date(testAttempt.submittedAt).getTime() - new Date(testAttempt.startedAt).getTime() :
       new Date().getTime() - new Date(testAttempt.startedAt).getTime();
     
     const timeTakenMinutes = timeTakenMs / (1000 * 60);
     const speed = timeTakenMinutes > 0 ? (correct + incorrect) / timeTakenMinutes : 0;
 
     // Update test attempt with results
-    testAttempt.endedAt = new Date();
+    testAttempt.submittedAt = new Date();
     testAttempt.score = score;
     testAttempt.correct = correct;
     testAttempt.incorrect = incorrect;
@@ -297,7 +377,13 @@ exports.submitTest = async (req, res) => {
     await testAttempt.save();
 
     // Update ranking
-    await updateRanking(seriesId, testId, userId, score, accuracy);
+    const userRanking = await updateRanking(seriesId, testId, userId, score, accuracy);
+    
+    // Save the rank in the test attempt
+    if (userRanking) {
+      testAttempt.rank = userRanking.rank;
+      await testAttempt.save();
+    }
 
     return res.status(200).json({
       success: true,
@@ -338,8 +424,13 @@ const updateRanking = async (seriesId, testId, userId, score, accuracy) => {
       allRankings[i].totalParticipants = allRankings.length;
       await allRankings[i].save();
     }
+    
+    // Return the user's ranking
+    const userRanking = await TestRanking.findOne({ testId, user: userId });
+    return userRanking;
   } catch (error) {
     console.error('Error updating ranking:', error);
+    return null;
   }
 };
 
@@ -369,14 +460,6 @@ exports.getResultAnalysis = async (req, res) => {
       });
     }
 
-    // Check if result is generated
-    if (!testAttempt.resultGenerated) {
-      return res.status(400).json({
-        success: false,
-        message: 'Test result not yet generated'
-      });
-    }
-
     // Find the test series and the specific test
     const testSeries = await TestSeries.findById(testAttempt.testSeries);
     if (!testSeries) {
@@ -391,6 +474,22 @@ exports.getResultAnalysis = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Test not found in this series'
+      });
+    }
+
+    // Check if result is generated
+    if (!testAttempt.resultGenerated) {
+      return res.status(400).json({
+        success: false,
+        message: 'Test result not yet generated'
+      });
+    }
+
+    // Check if result publish time has passed
+    if (test.resultPublishTime && new Date() < new Date(test.resultPublishTime)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Test result not yet published'
       });
     }
 
@@ -562,3 +661,44 @@ exports.getResultAnalysis = async (req, res) => {
     });
   }
 };
+
+// Get user's test attempts/history
+exports.getUserTestAttempts = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Get all test attempts for this user
+    const attempts = await TestAttempt.find({ user: userId })
+      .populate('testSeries', 'name')
+      .sort({ createdAt: -1 });
+    
+    // Filter out attempts where result is not yet published
+    const filteredAttempts = [];
+    
+    for (const attempt of attempts) {
+      // Find the test series and the specific test
+      const testSeries = await TestSeries.findById(attempt.testSeries);
+      if (testSeries) {
+        const test = testSeries.tests.id(attempt.testId);
+        if (test) {
+          // Check if result publish time has passed
+          if (!test.resultPublishTime || new Date() >= new Date(test.resultPublishTime)) {
+            filteredAttempts.push(attempt);
+          }
+        }
+      }
+    }
+    
+    return res.status(200).json({
+      success: true,
+      data: filteredAttempts
+    });
+  } catch (error) {
+    console.error('Error fetching user test attempts:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+}

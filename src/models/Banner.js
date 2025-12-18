@@ -11,6 +11,10 @@ const bannerSchema = new mongoose.Schema(
 
     images: [
       {
+        _id: {
+          type: String,
+          required: true
+        },
         id: {
           type: String,
           required: true

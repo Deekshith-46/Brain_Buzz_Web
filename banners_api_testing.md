@@ -57,14 +57,17 @@ images[]: about2.jpg
     "pageType": "HOME",
     "images": [
       {
+        "_id": "6943e167c83aae32628d4457",
         "id": "1702904408562-0",
         "url": "https://res.cloudinary.com/.../banner1.jpg"
       },
       {
+        "_id": "6943e167c83aae32628d4458",
         "id": "1702904408562-1",
         "url": "https://res.cloudinary.com/.../banner2.jpg"
       },
       {
+        "_id": "6943e167c83aae32628d4459",
         "id": "1702904408562-2",
         "url": "https://res.cloudinary.com/.../banner3.jpg"
       }
@@ -88,10 +91,12 @@ images[]: about2.jpg
     "description": "Long about us text here...",
     "images": [
       {
+        "_id": "6943e167c83aae32628d445a",
         "id": "1702904408562-0",
         "url": "https://res.cloudinary.com/.../about1.jpg"
       },
       {
+        "_id": "6943e167c83aae32628d445b",
         "id": "1702904408562-1",
         "url": "https://res.cloudinary.com/.../about2.jpg"
       }
@@ -124,10 +129,12 @@ GET /api/admin/banners/ABOUT
     "pageType": "HOME",
     "images": [
       {
+        "_id": "6943e167c83aae32628d4457",
         "id": "1702904408562-0",
         "url": "https://res.cloudinary.com/.../banner1.jpg"
       },
       {
+        "_id": "6943e167c83aae32628d4458",
         "id": "1702904408562-1",
         "url": "https://res.cloudinary.com/.../banner2.jpg"
       }
@@ -159,20 +166,22 @@ DELETE /api/admin/banners/ABOUT
 }
 ```
 
-### 4. Update Specific Image in Banner
+### 4. Update Specific Image in Banner (using _id)
 
 **Endpoint:** `PUT /api/admin/banners/:pageType/images/:imageId`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
 - `Content-Type: multipart/form-data`
 
+**Note:** The `:imageId` parameter refers to the `_id` field of the image object, not the `id` field.
+
 #### Form Fields:
 - `image`: (select your new image file)
 
 #### Examples:
 ```
-PUT /api/admin/banners/HOME/images/1702904408562-0
-PUT /api/admin/banners/ABOUT/images/1702904408562-1
+PUT /api/admin/banners/HOME/images/6943e167c83aae32628d4457
+PUT /api/admin/banners/ABOUT/images/6943e167c83aae32628d4458
 ```
 
 #### Expected Response:
@@ -185,10 +194,12 @@ PUT /api/admin/banners/ABOUT/images/1702904408562-1
     "pageType": "HOME",
     "images": [
       {
+        "_id": "6943e167c83aae32628d4457",
         "id": "1702904408562-0",
         "url": "https://res.cloudinary.com/.../new_image.jpg"
       },
       {
+        "_id": "6943e167c83aae32628d4458",
         "id": "1702904408562-1",
         "url": "https://res.cloudinary.com/.../other_image.jpg"
       }

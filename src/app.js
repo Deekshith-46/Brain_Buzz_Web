@@ -26,7 +26,6 @@ const adminDailyQuizRoutes = require('./routes/Admin/dailyQuizRoutes');
 const adminCurrentAffairsRoutes = require('./routes/Admin/currentAffairsRoutes');
 const adminCurrentAffairsCategoryRoutes = require('./routes/Admin/currentAffairsCategoryRoutes');
 const adminTestSeriesRoutes = require('./routes/Admin/testSeriesRoutes');
-const adminTestAttemptRoutes = require('./routes/Admin/testAttemptRoutes');
 const adminLiveClassRoutes = require('./routes/Admin/liveClassRoutes');
 const userRoutes = require('./routes/User/userRoutes');
 const userAuthRoutes = require('./routes/User/authRoutes');
@@ -76,7 +75,6 @@ app.use('/api/admin/daily-quizzes', adminDailyQuizRoutes);
 app.use('/api/admin/current-affairs', adminCurrentAffairsRoutes);
 app.use('/api/admin/current-affairs-categories', adminCurrentAffairsCategoryRoutes);
 app.use('/api/admin/test-series', adminTestSeriesRoutes);
-app.use('/api/admin/test-attempts', adminTestAttemptRoutes);
 app.use('/api/admin/live-classes', adminLiveClassRoutes);
 app.use('/api/v1/admin/coupons', adminCouponRoutes);
 // And in your route middleware section, add:

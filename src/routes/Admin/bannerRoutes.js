@@ -12,7 +12,7 @@ router.get('/:pageType', bannerController.getBanner);
 // Route for deleting banner by page type
 router.delete('/:pageType', bannerController.deleteBanner);
 
-// Route for updating specific image in banner
+// Route for updating specific image in banner (using _id)
 router.put('/:pageType/images/:imageId', uploadMiddleware.single('image'), bannerController.updateBannerImage);
 
 module.exports = router;

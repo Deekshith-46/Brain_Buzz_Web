@@ -14,7 +14,7 @@ const testAttemptSchema = new mongoose.Schema({
   testId: { type: String, required: true }, // _id of the test inside series
 
   startedAt: Date,
-  endedAt: Date,
+  submittedAt: Date, // When user submitted the test
 
   responses: [responseSchema],
 
@@ -25,7 +25,8 @@ const testAttemptSchema = new mongoose.Schema({
 
   accuracy: Number,    // (correct / total_attempt ) * 100
   speed: Number,       // questions answered per minute
-  percentage: Number,  
+  percentage: Number,
+  rank: Number,        // User's rank in this test
 
   resultGenerated: { type: Boolean, default: false }
 }, { timestamps: true });
