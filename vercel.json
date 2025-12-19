@@ -1,14 +1,13 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "src/server.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+  "functions": {
+    "src/server.js": {
+      "runtime": "@vercel/node",
+      "maxDuration": 60,
+      "memory": 1024,
+      "maxLambdaSize": "50mb"
     }
-  ],
+  },
   "routes": [
     {
       "src": "/(.*)",
@@ -18,11 +17,5 @@
         "content-length": "0"
       }
     }
-  ],
-  "functions": {
-    "src/server.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  }
+  ]
 }
