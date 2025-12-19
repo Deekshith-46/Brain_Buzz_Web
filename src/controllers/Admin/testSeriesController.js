@@ -17,7 +17,7 @@ const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   });
 };
 
-// Create Test Series (basic info + maxTests)
+// Create Test Series (basic info + noOfTests)
 exports.createTestSeries = async (req, res) => {
   try {
     let {
@@ -25,9 +25,9 @@ exports.createTestSeries = async (req, res) => {
       categoryIds = [],
       subCategoryIds = [],
       name,
-      maxTests,
+      noOfTests,
       description,
-      price = 0,
+      originalPrice = 0,
       discountType,
       discountValue,
       discountValidUntil,
@@ -64,13 +64,19 @@ exports.createTestSeries = async (req, res) => {
       subCategoryIds = [subCategoryIds];
     }
 
-    // Parse language if it's a JSON string
+    // Parse languages if it's a JSON string
     if (typeof language === 'string') {
       try {
         language = JSON.parse(language);
       } catch (e) {
-        // Keep as is if parsing fails
+        // If parsing fails, treat as a single ID
+        language = [language];
       }
+    }
+    
+    // Ensure languages is an array
+    if (language && !Array.isArray(language)) {
+      language = [language];
     }
 
     // Parse validity if it's a JSON string
@@ -89,15 +95,15 @@ exports.createTestSeries = async (req, res) => {
       });
     }
 
-    if (typeof maxTests === 'undefined' || maxTests <= 0) {
+    if (typeof noOfTests === 'undefined' || noOfTests <= 0) {
       return res.status(400).json({ 
         success: false,
-        message: 'maxTests (number of tests) must be greater than 0' 
+        message: 'noOfTests (number of tests) must be greater than 0' 
       });
     }
 
     // Validate price
-    if (price < 0) {
+    if (originalPrice < 0) {
       return res.status(400).json({ 
         success: false,
         message: 'Price cannot be negative' 
@@ -157,12 +163,12 @@ if (discountType !== undefined && discountType !== '') {
       categories: Array.isArray(categoryIds) ? categoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [categoryIds].filter(Boolean),
       subCategories: Array.isArray(subCategoryIds) ? subCategoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [subCategoryIds].filter(Boolean),
       name,
-      maxTests,
+      noOfTests,
       description,
       thumbnail,
-      price: Number(price),
+      originalPrice: Number(originalPrice),
       discount: discountData,
-      language: language && language !== 'null' && language !== 'undefined' ? language : undefined,
+      languages: language && language !== 'null' && language !== 'undefined' ? language : undefined,
       validity: validity && validity !== 'null' && validity !== 'undefined' ? validity : undefined,
       accessType: "PAID"
     });
@@ -190,7 +196,7 @@ exports.getFullTestSeries = async (req, res) => {
     const series = await TestSeries.findById(id)
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
+      .populate('languages', 'name code')
       .populate('validity', 'label durationInDays');
 
     if (!series) {
@@ -250,9 +256,9 @@ exports.getTestSeriesList = async (req, res) => {
     
     // Add price range filtering if provided
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
+      filter.originalPrice = {};
+      if (minPrice) filter.originalPrice.$gte = Number(minPrice);
+      if (maxPrice) filter.originalPrice.$lte = Number(maxPrice);
     }
 
     console.log('Admin Test Series filter:', JSON.stringify(filter, null, 2));
@@ -265,39 +271,16 @@ exports.getTestSeriesList = async (req, res) => {
     const seriesList = await TestSeries.find(filter)
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
+      .populate('languages', 'name code')
       .populate('validity', 'label durationInDays');
 
     console.log(`Admin - Found ${seriesList.length} test series`);
 
-    // Calculate final price for each series
-    const now = new Date();
-    const seriesWithFinalPrice = seriesList.map(series => {
-      const seriesObj = series.toObject();
-      let finalPrice = series.price;
-      const discount = series.discount || {};
-
-      if (discount.type && discount.value > 0) {
-        const isDiscountValid = !discount.validUntil || new Date(discount.validUntil) > now;
-        
-        if (isDiscountValid) {
-          if (discount.type === 'percentage') {
-            finalPrice = series.price * (1 - (discount.value / 100));
-          } else if (discount.type === 'fixed') {
-            finalPrice = Math.max(0, series.price - discount.value);
-          }
-        }
-      }
-
-      seriesObj.finalPrice = finalPrice;
-      return seriesObj;
-    });
-
     return res.status(200).json({ 
       success: true,
-      data: seriesWithFinalPrice,
+      data: seriesList,
       meta: {
-        total: seriesWithFinalPrice.length,
+        total: seriesList.length,
         totalInDatabase: totalCount,
         matchingFilter: filterCount
       }
@@ -316,36 +299,15 @@ exports.getTestSeriesById = async (req, res) => {
     const series = await TestSeries.findById(id)
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
+      .populate('languages', 'name code')
       .populate('validity', 'label durationInDays');
 
     if (!series) {
       return res.status(404).json({ message: 'Test Series not found' });
     }
 
-    // Calculate final price based on discount
-    let finalPrice = series.price;
-    const discount = series.discount || {};
-    
-    if (discount.type && discount.value > 0) {
-      const now = new Date();
-      const isDiscountValid = !discount.validUntil || new Date(discount.validUntil) > now;
-      
-      if (isDiscountValid) {
-        if (discount.type === 'percentage') {
-          finalPrice = series.price * (1 - (discount.value / 100));
-        } else if (discount.type === 'fixed') {
-          finalPrice = Math.max(0, series.price - discount.value);
-        }
-      }
-    }
-
-    // Add finalPrice to the response
-    const seriesData = series.toObject();
-    seriesData.finalPrice = finalPrice;
-
     return res.status(200).json({ 
-      data: seriesData 
+      data: series 
     });
   } catch (error) {
     console.error('Error fetching Test Series:', error);
@@ -362,10 +324,10 @@ exports.updateTestSeries = async (req, res) => {
       categoryIds,
       subCategoryIds,
       name,
-      maxTests,
+      noOfTests,
       description,
       isActive,
-      price,
+      originalPrice,
       discountType,
       discountValue,
       discountValidUntil,
@@ -402,13 +364,19 @@ exports.updateTestSeries = async (req, res) => {
       subCategoryIds = [subCategoryIds];
     }
 
-    // Parse language if provided and it's a JSON string
+    // Parse languages if provided and it's a JSON string
     if (language && typeof language === 'string') {
       try {
         language = JSON.parse(language);
       } catch (e) {
-        // Keep as is if parsing fails
+        // If parsing fails, treat as a single ID
+        language = [language];
       }
+    }
+    
+    // Ensure languages is an array
+    if (language && !Array.isArray(language)) {
+      language = [language];
     }
 
     // Parse validity if provided and it's a JSON string
@@ -426,22 +394,22 @@ exports.updateTestSeries = async (req, res) => {
     if (categoryIds) updates.categories = Array.isArray(categoryIds) ? categoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [categoryIds].filter(Boolean);
     if (subCategoryIds) updates.subCategories = Array.isArray(subCategoryIds) ? subCategoryIds.filter(id => id && id !== 'null' && id !== 'undefined') : [subCategoryIds].filter(Boolean);
     if (name) updates.name = name;
-    if (typeof maxTests !== 'undefined') updates.maxTests = maxTests;
+    if (typeof noOfTests !== 'undefined') updates.noOfTests = noOfTests;
     if (typeof description !== 'undefined') updates.description = description;
     if (typeof isActive !== 'undefined') updates.isActive = isActive;
     if (typeof accessType !== 'undefined') updates.accessType = accessType;
-    if (typeof language !== 'undefined') updates.language = language && language !== 'null' && language !== 'undefined' ? language : undefined;
+    if (typeof language !== 'undefined') updates.languages = language && language !== 'null' && language !== 'undefined' ? language : undefined;
     if (typeof validity !== 'undefined') updates.validity = validity && validity !== 'null' && validity !== 'undefined' ? validity : undefined;
     
     // Handle price update
-    if (typeof price !== 'undefined') {
-      if (price < 0) {
+    if (typeof originalPrice !== 'undefined') {
+      if (originalPrice < 0) {
         return res.status(400).json({ 
           success: false,
           message: 'Price cannot be negative' 
         });
       }
-      updates.price = Number(price);
+      updates.originalPrice = Number(originalPrice);
     }
 
     // Process and validate discount if provided
@@ -495,15 +463,29 @@ if (discountType !== undefined) {
       updates.thumbnail = req.file.path;
     }
 
-    const series = await TestSeries.findByIdAndUpdate(
-      id, 
-      { $set: updates },
-      { new: true, runValidators: true }
-    )
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
-      .populate('validity', 'label durationInDays');
+    const series = await TestSeries.findById(id);
+    if (!series) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Test Series not found' 
+      });
+    }
+
+    // Apply updates to the document
+    Object.keys(updates).forEach(key => {
+      series[key] = updates[key];
+    });
+
+    // Save the document to trigger the pre-save hook for finalPrice calculation
+    await series.save();
+
+    // Populate the references
+    await series.populate([
+      { path: 'categories', select: 'name slug' },
+      { path: 'subCategories', select: 'name slug' },
+      { path: 'languages', select: 'name code' },
+      { path: 'validity', select: 'label durationInDays' }
+    ]);
 
     if (!series) {
       return res.status(404).json({ 
@@ -565,13 +547,17 @@ exports.addTestToSeries = async (req, res) => {
       return res.status(404).json({ message: 'Test Series not found' });
     }
 
-    if (series.tests.length >= series.maxTests) {
+    if (series.tests.length >= series.noOfTests) {
       return res.status(400).json({
         message:
           'Cannot add more tests. You have reached the maximum number of tests for this series.',
       });
     }
 
+    // Set isFree to true for the first two tests, false for others
+    // The new test will be at position series.tests.length (0-indexed)
+    const isFree = series.tests.length < 2;
+    
     const newTest = {
       testName,
       noOfQuestions,
@@ -581,13 +567,10 @@ exports.addTestToSeries = async (req, res) => {
       date,
       startTime,
       endTime,
+      isFree
     };
 
     series.tests.push(newTest);
-    
-    // Auto-mark first 2 tests as free based on their position
-    const testIndex = series.tests.length - 1; // Index of the newly added test
-    series.tests[testIndex].isFree = testIndex < 2;
     
     await series.save();
 
@@ -620,32 +603,29 @@ exports.bulkAddTestsToSeries = async (req, res) => {
       });
     }
 
-    // Check if adding these tests would exceed maxTests limit
-    if (series.tests.length + tests.length > series.maxTests) {
+    // Check if adding these tests would exceed noOfTests limit
+    if (series.tests.length + tests.length > series.noOfTests) {
       return res.status(400).json({
-        message: `Cannot add ${tests.length} tests. You would exceed the maximum number of tests (${series.maxTests}) for this series.`
+        message: `Cannot add ${tests.length} tests. You would exceed the maximum number of tests (${series.noOfTests}) for this series.`
       });
     }
 
     // Add all tests
-    const newTests = [];
     for (let i = 0; i < tests.length; i++) {
       const test = tests[i];
       
       // Skip isFree field to prevent manual override
-      const { isFree, ...testData } = test;
+      const { isFree: originalIsFree, ...testData } = test;
+      
+      // Set isFree to true for the first two tests, false for others
+      const calculatedIsFree = series.tests.length < 2;
       
       const newTest = {
-        ...testData
+        ...testData,
+        isFree: calculatedIsFree
       };
       
       series.tests.push(newTest);
-      
-      // Auto-mark first 2 tests as free based on their position
-      const testIndex = series.tests.length - 1; // Index of the newly added test
-      series.tests[testIndex].isFree = testIndex < 2;
-      
-      newTests.push(series.tests[testIndex]);
     }
 
     await series.save();

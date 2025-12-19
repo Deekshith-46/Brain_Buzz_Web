@@ -35,8 +35,8 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 **Form Fields:**
 - `name`: "UPSC Prelims Test Series"
 - `description`: "Complete test series for UPSC Prelims preparation"
-- `maxTests`: 20
-- `price`: 499
+- `noOfTests`: 20
+- `originalPrice`: 499
 - `categoryIds[]`: (array of category IDs)
 - `subCategoryIds[]`: (array of sub-category IDs)
 - `thumbnail`: (select your image file)
@@ -46,7 +46,7 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 - `language`: "English" (optional: Language of the test series)
 - `validity`: "Lifetime" (optional: Validity period of the test series)
 
-**Note:** The `maxTests` field determines the maximum number of tests that can be added to this test series. This limit is enforced when adding tests to the series.
+**Note:** The `noOfTests` field determines the maximum number of tests that can be added to this test series. This limit is enforced when adding tests to the series.
 
 **Expected Response:**
 ```json
@@ -62,9 +62,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
     "name": "UPSC Prelims Test Series",
-    "maxTests": 20,
+    "noOfTests": 20,
     "description": "Complete test series for UPSC Prelims preparation",
-    "price": 499,
+    "originalPrice": 499,
     "discount": {
       "type": null,
       "value": 0,
@@ -107,9 +107,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
       "subCategories": [],
       "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
       "name": "UPSC Prelims Test Series",
-      "maxTests": 20,
+      "noOfTests": 20,
       "description": "Complete test series for UPSC Prelims preparation",
-      "price": 499,
+      "originalPrice": 499,
       "discount": {
         "type": null,
         "value": 0,
@@ -149,9 +149,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
     "name": "UPSC Prelims Test Series",
-    "maxTests": 20,
+    "noOfTests": 20,
     "description": "Complete test series for UPSC Prelims preparation",
-    "price": 499,
+    "originalPrice": 499,
     "discount": {
       "type": null,
       "value": 0,
@@ -177,8 +177,8 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 **Form Fields (any combination):**
 - `name`: "Updated UPSC Prelims Test Series"
 - `description`: "Updated description"
-- `maxTests`: 25
-- `price`: 599
+- `noOfTests`: 25
+- `originalPrice`: 599
 - `isActive`: true
 - `categoryIds[]`: (array of category IDs)
 - `subCategoryIds[]`: (array of sub-category IDs)
@@ -189,7 +189,7 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 - `language`: "Hindi"
 - `validity`: "1 Year"
 
-**Note:** The `maxTests` field determines the maximum number of tests that can be added to this test series. This limit is enforced when adding tests to the series. Reducing this number below the current number of tests in the series is not allowed.
+**Note:** The `noOfTests` field determines the maximum number of tests that can be added to this test series. This limit is enforced when adding tests to the series. Reducing this number below the current number of tests in the series is not allowed.
 
 **Expected Response:**
 ```json
@@ -205,9 +205,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../new_thumbnail.jpg",
     "name": "Updated UPSC Prelims Test Series",
-    "maxTests": 25,
+    "noOfTests": 25,
     "description": "Updated description",
-    "price": 599,
+    "originalPrice": 599,
     "discount": {
       "type": "percentage",
       "value": 15,
@@ -240,7 +240,13 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 
 #### 2.1 Add Test to Test Series
 
-**Note:** Only the first 2 tests in a series are automatically marked as free. Admins cannot manually set the `isFree` flag as it's automatically determined by the test's position in the series. The system automatically sets `isFree` to `true` for the first two tests based on their position, and `false` for subsequent tests.
+**Note:** Only the first 2 tests in a series are automatically accessible for free. The system automatically determines FREE vs PAID access based on the test's position in the series. The first two tests are accessible for free, and subsequent tests require purchase. This access logic is calculated dynamically and not stored in the database.
+
+**Important Design Decision:** The `isFree` field is intentionally NOT stored in the database. Instead, FREE/PAID access is derived at runtime based on the test's position. This approach ensures:
+- No database pollution with redundant fields
+- Future-proof flexibility (can easily change "first 2 free" to "first 3 free")
+- Clean separation between admin and user views
+- Seamless integration with payment systems
 **Endpoint:** `POST /api/admin/test-series/:seriesId/tests`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
@@ -261,9 +267,14 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 }
 ```
 
-**Note:** The `isFree` flag is automatically determined by the system based on the test's position in the series. The first two tests are automatically marked as free, and subsequent tests are marked as paid. Any value provided for `isFree` in the request body will be ignored.
+**Note:** The `isFree` flag is automatically determined by the system based on the test's position in the series. The first two tests are automatically marked as free, and subsequent tests are marked as paid. The `isFree` field is calculated dynamically and not stored in the database. Any value provided for `isFree` in the request body will be ignored.
 
-**Expected Response:**
+**Access Control Logic:**
+- **Admin View:** Admins can access ALL tests without restriction
+- **User View (Non-Purchased):** First 2 tests → Free access, Remaining tests → "Buy to unlock"
+- **User View (Purchased):** All tests → Unlocked
+
+**Expected Response:
 ```json
 {
   "message": "Test added to series successfully",
@@ -276,9 +287,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
     "name": "UPSC Prelims Test Series",
-    "maxTests": 20,
+    "noOfTests": 20,
     "description": "Complete test series for UPSC Prelims preparation",
-    "price": 499,
+    "originalPrice": 499,
     "discount": {
       "type": null,
       "value": 0,
@@ -363,9 +374,14 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 }
 ```
 
-**Note:** The `isFree` flag is automatically determined by the system based on the test's position in the series. The first two tests are automatically marked as free, and subsequent tests are marked as paid. Any value provided for `isFree` in the request body will be ignored.
+**Note:** The `isFree` flag is automatically determined by the system based on the test's position in the series. The first two tests are automatically marked as free, and subsequent tests are marked as paid. The `isFree` field is calculated dynamically and not stored in the database. Any value provided for `isFree` in the request body will be ignored.
 
-**Expected Response:**
+**Access Control Logic:**
+- **Admin View:** Admins can access ALL tests without restriction
+- **User View (Non-Purchased):** First 2 tests → Free access, Remaining tests → "Buy to unlock"
+- **User View (Purchased):** All tests → Unlocked
+
+**Expected Response:
 ```json
 {
   "message": "Test updated successfully",
@@ -396,10 +412,83 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 }
 ```
 
-#### 2.4 Delete Test from Test Series
+#### 2.4 Bulk Add Tests to Test Series
+
+**Endpoint:** `POST /api/admin/test-series/:seriesId/tests/bulk`  
+**Headers:** 
+- `Authorization: Bearer <admin_jwt_token>`
+- `Content-Type: application/json`
+
+**Request Body:**
+```json
+[
+  {
+    "testName": "General Studies Paper 1 - Test 1",
+    "noOfQuestions": 100,
+    "totalMarks": 200,
+    "positiveMarks": 2,
+    "negativeMarks": 0.67,
+    "date": "2024-06-15T00:00:00Z",
+    "startTime": "2024-06-15T09:00:00Z",
+    "endTime": "2024-06-15T12:00:00Z",
+    "resultPublishTime": "2024-06-16T12:00:00Z"
+  },
+  {
+    "testName": "General Studies Paper 1 - Test 2",
+    "noOfQuestions": 100,
+    "totalMarks": 200,
+    "positiveMarks": 2,
+    "negativeMarks": 0.67,
+    "date": "2024-06-16T00:00:00Z",
+    "startTime": "2024-06-16T09:00:00Z",
+    "endTime": "2024-06-16T12:00:00Z",
+    "resultPublishTime": "2024-06-17T12:00:00Z"
+  }
+]
+```
+
+**Note:** This endpoint allows adding multiple tests to a test series in a single request. The same rules apply as for adding individual tests:
+- The `isFree` flag is automatically determined based on position in the series
+- Cannot exceed the `noOfTests` limit for the series
+- Tests are added in the order they appear in the array
+
+**Access Control Logic:**
+- **Admin View:** Admins can access ALL tests without restriction
+- **User View (Non-Purchased):** First 2 tests → Free access, Remaining tests → "Buy to unlock"
+- **User View (Purchased):** All tests → Unlocked
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Tests added to series successfully",
+  "data": {
+    "addedTests": 2,
+    "series": {
+      "_id": "test_series_id",
+      "name": "UPSC Prelims Test Series",
+      "noOfTests": 20,
+      "tests": [
+        {
+          "_id": "test_1_id",
+          "testName": "General Studies Paper 1 - Test 1",
+          "isFree": true
+        },
+        {
+          "_id": "test_2_id",
+          "testName": "General Studies Paper 1 - Test 2",
+          "isFree": true
+        }
+      ]
+    }
+  }
+}
+```
+
+#### 2.5 Delete Test from Test Series
 **Endpoint:** `DELETE /api/admin/test-series/:seriesId/tests/:testId`
 
-#### 2.5 Bulk Add Tests to Test Series
+#### 2.6 Bulk Add Tests to Test Series
 **Endpoint:** `POST /api/admin/test-series/:seriesId/tests/bulk`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
@@ -435,7 +524,17 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 }
 ```
 
-**Expected Response:**
+**Note:** This endpoint allows adding multiple tests to a test series in a single request. The same rules apply as for adding individual tests:
+- The `isFree` flag is automatically determined based on position in the series
+- Cannot exceed the `noOfTests` limit for the series
+- Tests are added in the order they appear in the array
+
+**Access Control Logic:**
+- **Admin View:** Admins can access ALL tests without restriction
+- **User View (Non-Purchased):** First 2 tests → Free access, Remaining tests → "Buy to unlock"
+- **User View (Purchased):** All tests → Unlocked
+
+**Expected Response:
 ```json
 {
   "message": "2 tests added to series successfully",
@@ -448,9 +547,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
     "name": "UPSC Prelims Test Series",
-    "maxTests": 20,
+    "noOfTests": 20,
     "description": "Complete test series for UPSC Prelims preparation",
-    "price": 499,
+    "originalPrice": 499,
     "discount": {
       "type": null,
       "value": 0,
@@ -502,7 +601,7 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
 }
 ```
 
-#### 2.6 Delete Test from Test Series
+#### 2.7 Delete Test from Test Series
 **Endpoint:** `DELETE /api/admin/test-series/:seriesId/tests/:testId`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
@@ -1121,9 +1220,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
       "subCategories": [],
       "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
       "name": "UPSC Prelims Test Series",
-      "maxTests": 20,
+      "noOfTests": 20,
       "description": "Complete test series for UPSC Prelims preparation",
-      "price": 499,
+      "originalPrice": 499,
       "discount": {
         "type": null,
         "value": 0,
@@ -1157,9 +1256,9 @@ User endpoints for test attempts require a valid user JWT token. Additionally, t
     "subCategories": [],
     "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
     "name": "UPSC Prelims Test Series",
-    "maxTests": 20,
+    "noOfTests": 20,
     "description": "Complete test series for UPSC Prelims preparation",
-    "price": 499,
+    "originalPrice": 499,
     "discount": {
       "type": null,
       "value": 0,
@@ -1410,8 +1509,8 @@ Additionally, results are only visible when the test is in 'results_available' s
 
 ### Test Series Creation/Update
 * ✅ name is required
-* ✅ maxTests must be greater than 0
-* ✅ price cannot be negative
+* ✅ noOfTests must be greater than 0
+* ✅ originalPrice cannot be negative
 * ✅ categoryIds and subCategoryIds must be valid ObjectId arrays
 * ✅ discount validation:
   * discountType must be "percentage" or "fixed" (or null/empty to remove)
@@ -1429,7 +1528,11 @@ Additionally, results are only visible when the test is in 'results_available' s
 * ✅ date should be consistent with startTime/endTime
 * ✅ resultPublishTime must be after endTime if provided
 * ✅ isFree flag is automatically set based on test position (first 2 tests are free)
-* ✅ Cannot add more tests than maxTests limit
+* ✅ FREE/PAID access is determined dynamically, not stored in database
+* ✅ Access control enforced by purchase check middleware
+* ✅ Admins bypass all access restrictions
+* ✅ Users can access first 2 tests free, remaining require purchase
+* ✅ Cannot add more tests than noOfTests limit
 * ✅ Test timing states enforced (upcoming, live, result_pending, results_available)
 * ✅ Users can only start tests when they are in 'live' state
 * ✅ Results are only visible after resultPublishTime
@@ -1457,6 +1560,9 @@ Additionally, results are only visible when the test is in 'results_available' s
 * ✅ Results are only visible after resultPublishTime
 * ✅ Purchase check middleware prevents unauthorized access to paid tests
 * ✅ Users must purchase test series before accessing paid tests (except first 2 free tests)
+* ✅ Access control logic: First 2 tests → Free, Tests 3+ → Require purchase
+* ✅ Admins can access all tests without purchase requirements
+* ✅ Dynamic access determination at runtime (not stored in DB)
 
 ---
 
@@ -1470,7 +1576,7 @@ Additionally, results are only visible when the test is in 'results_available' s
 2. **Adding Tests:**
    - Add multiple tests to the test series
    - Verify the first 2 tests are marked as free automatically
-   - Check that you cannot exceed maxTests limit
+   - Check that you cannot exceed noOfTests limit
    - Set resultPublishTime to control when results are visible
    - Test bulk test upload functionality
 
@@ -1523,5 +1629,155 @@ Additionally, results are only visible when the test is in 'results_available' s
     - Verify test timing state enforcement (upcoming, live, result_pending, results_available)
     - Confirm section question limits are enforced
     - Validate that only the first 2 tests are free regardless of manual settings
+    - **FREE/Paid Access Testing:**
+      * Verify first 2 tests in any series are accessible without purchase
+      * Confirm tests 3+ require purchase for access
+      * Test admin override (admins can access all tests)
+      * Validate dynamic access determination (no `isFree` field in database)
+      * Check proper error messaging for restricted tests
+      * Verify "Buy to unlock" UI elements display correctly
+      * Test access persistence for purchased users
+
+11. **Filtering Testing:**
+    - Test category-based filtering:
+      * Request: `GET /api/admin/test-series?category=<category_id>`
+      * Expected: Only test series belonging to the specified category are returned
+    - Test sub-category filtering:
+      * Request: `GET /api/admin/test-series?subCategory=<sub_category_id>`
+      * Expected: Only test series belonging to the specified sub-category are returned
+    - Test active status filtering:
+      * Request: `GET /api/admin/test-series?isActive=true`
+      * Expected: Only active test series are returned
+      * Request: `GET /api/admin/test-series?isActive=false`
+      * Expected: Only inactive test series are returned
+    - Test price range filtering:
+      * Request: `GET /api/admin/test-series?minPrice=100&maxPrice=500`
+      * Expected: Only test series with originalPrice between 100 and 500 are returned
+      * Request: `GET /api/admin/test-series?minPrice=300`
+      * Expected: Only test series with originalPrice >= 300 are returned
+    - Test combined filtering:
+      * Request: `GET /api/admin/test-series?category=<category_id>&isActive=true&minPrice=100`
+      * Expected: Only active test series belonging to the specified category with originalPrice >= 100 are returned
+    - Test user-side filtering:
+      * Request: `GET /api/user/test-series?category=<category_id>`
+      * Expected: Only active test series belonging to the specified category are returned to users
 
 Ensure all endpoints return appropriate error messages for invalid requests.
+
+---
+
+## FREE vs PAID Test Access Logic
+
+### Core Design Principle
+
+The Brain Buzz platform implements a sophisticated access control system for test series that differentiates between FREE and PAID content. This system is designed with the following principles:
+
+1. **Dynamic Access Determination**: FREE/PAID status is calculated at runtime, not stored in the database
+2. **Position-Based Access**: The first 2 tests in any series are automatically FREE
+3. **Flexible Rules**: Business rules can be easily modified without database changes
+4. **Clear Separation**: Different access rules for Admins vs Users
+
+### Implementation Details
+
+#### How FREE/Paid Access Works
+
+1. **No Persistent Storage**: The `isFree` field is NEVER stored in the database
+2. **Runtime Calculation**: Access type is determined dynamically based on test position
+3. **Automatic Assignment**: First 2 tests = FREE, Remaining tests = PAID
+4. **Admin Override**: Admins bypass all access restrictions
+
+#### User Access Scenarios
+
+**Scenario 1: Non-Purchased User**
+- Can access first 2 tests in any series (FREE)
+- Cannot access tests 3+ without purchasing the series
+- Sees "Buy to unlock" messaging for paid tests
+
+**Scenario 2: Purchased User**
+- Can access ALL tests in the purchased series
+- No restrictions based on test position
+- Full access to all test features
+
+**Scenario 3: Admin User**
+- Can access ALL tests in ALL series
+- No purchase requirements
+- No position-based restrictions
+- Full administrative capabilities
+
+### Benefits of This Approach
+
+#### 1. Database Efficiency
+- No redundant `isFree` fields cluttering the database
+- Cleaner data model with fewer maintenance concerns
+- Reduced storage overhead
+
+#### 2. Business Flexibility
+- Can easily change "first 2 free" to "first 3 free" with one code change
+- No database migrations required for rule changes
+- A/B testing different free tier strategies
+
+#### 3. Security & Consistency
+- Eliminates possibility of inconsistent `isFree` flags
+- Centralized logic reduces bugs
+- Admins always have full access regardless of flags
+
+#### 4. Payment Integration
+- Seamless integration with Razorpay and other payment systems
+- Clear distinction between free and paid content for billing
+- Automatic access granting upon successful purchase
+
+### Technical Implementation
+
+#### Backend Logic
+
+The FREE/PAID determination happens in the controller layer:
+
+```javascript
+// For user-facing endpoints
+const testsWithAccessInfo = testSeries.tests.map((test, index) => ({
+  ...test.toObject(),
+  accessType: index < 2 ? "FREE" : "PAID",
+  hasAccess: userHasPurchased || index < 2
+}));
+```
+
+#### Access Control Middleware
+
+Purchase check middleware enforces access rules:
+
+```javascript
+// Simplified logic
+if (userHasPurchased(testSeriesId)) {
+  allowAccess();
+} else if (testIndex < 2) {
+  allowAccess();
+} else {
+  blockAccess();
+}
+```
+
+### Testing Guidelines
+
+#### Admin Testing
+1. Verify admins can access ALL tests regardless of position
+2. Confirm no purchase requirements for admin users
+3. Test CRUD operations on tests 1-N without restrictions
+
+#### User Testing (Non-Purchased)
+1. Verify free access to tests 1-2 in any series
+2. Confirm blocked access to tests 3+ without purchase
+3. Check proper error messaging for restricted tests
+4. Validate "Buy to unlock" UI elements
+
+#### User Testing (Purchased)
+1. Verify full access to ALL tests after purchase
+2. Confirm no position-based restrictions post-purchase
+3. Test all test features work correctly
+4. Validate access persists across sessions
+
+#### Edge Cases
+1. Series with only 1 test (should be FREE)
+2. Series with only 2 tests (both should be FREE)
+3. Adding/removing tests affecting position-based access
+4. Changing test order and impact on FREE/PAID status
+5. Bulk operations maintaining correct access logic

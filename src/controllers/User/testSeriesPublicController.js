@@ -91,10 +91,10 @@ exports.listPublicTestSeries = async (req, res) => {
     console.log(`Total test series in DB: ${totalCount}, Active/Missing isActive: ${activeCount}, Inactive: ${inactiveCount}`);
     
     const seriesList = await TestSeries.find(filter)
-      .select('name description thumbnail date maxTests tests categories subCategories isActive language validity')
+      .select('name description thumbnail date noOfTests tests categories subCategories isActive languages validity')
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
+      .populate('languages', 'name code')
       .populate('validity', 'label durationInDays');
 
     console.log(`Found ${seriesList.length} test series matching filter`);
@@ -109,11 +109,11 @@ exports.listPublicTestSeries = async (req, res) => {
         description: series.description,
         thumbnail: series.thumbnail,
         date: series.date,
-        maxTests: series.maxTests,
+        maxTests: series.noOfTests,
         testsCount: series.tests?.length || 0,
         categories: series.categories,
         subCategories: series.subCategories,
-        language: series.language,
+        languages: series.languages,
         validity: series.validity,
         hasAccess
       };
@@ -147,7 +147,7 @@ exports.getPublicTestSeriesById = async (req, res) => {
     const series = await TestSeries.findOne({ _id: seriesId, contentType: 'TEST_SERIES', isActive: true })
       .populate('categories', 'name slug')
       .populate('subCategories', 'name slug')
-      .populate('language', 'name code')
+      .populate('languages', 'name code')
       .populate('validity', 'label durationInDays');
 
     if (!series) {
@@ -160,7 +160,7 @@ exports.getPublicTestSeriesById = async (req, res) => {
     const hasAccess = userId ? await checkTestSeriesAccess(userId, seriesId) : false;
 
     // Prepare test list without sensitive data
-    const tests = series.tests.map(test => ({
+    const tests = series.tests.map((test, index) => ({
       _id: test._id,
       testName: test.testName,
       noOfQuestions: test.questions?.length || 0,
@@ -170,6 +170,8 @@ exports.getPublicTestSeriesById = async (req, res) => {
       date: test.date,
       startTime: test.startTime,
       endTime: test.endTime,
+      // First two tests are free
+      isFree: index < 2,
       hasAccess // Include access status for each test
     }));
 
@@ -181,10 +183,10 @@ exports.getPublicTestSeriesById = async (req, res) => {
         description: series.description,
         thumbnail: series.thumbnail,
         date: series.date,
-        maxTests: series.maxTests,
+        maxTests: series.noOfTests,
         categories: series.categories,
         subCategories: series.subCategories,
-        language: series.language,
+        languages: series.languages,
         validity: series.validity,
         tests,
         hasAccess
@@ -222,7 +224,8 @@ exports.getPublicTestInSeries = async (req, res) => {
     }
 
     // Find the specific test in the series
-    const test = testSeries.tests.find(t => t._id.toString() === testId);
+    const testIndex = testSeries.tests.findIndex(t => t._id.toString() === testId);
+    const test = testSeries.tests[testIndex];
     if (!test) {
       return res.status(404).json({ 
         success: false,
@@ -256,6 +259,8 @@ exports.getPublicTestInSeries = async (req, res) => {
       startTime: test.startTime,
       endTime: test.endTime,
       resultPublishTime: test.resultPublishTime,
+      // First two tests are free
+      isFree: testIndex < 2,
       testState, // Add test state
       hasAccess
     };
@@ -339,7 +344,8 @@ exports.getPublicTestInSeriesPublic = async (req, res) => {
     }
 
     // Find the specific test in the series
-    const test = testSeries.tests.find(t => t._id.toString() === testId);
+    const testIndex = testSeries.tests.findIndex(t => t._id.toString() === testId);
+    const test = testSeries.tests[testIndex];
     if (!test) {
       return res.status(404).json({ 
         success: false,
@@ -361,6 +367,8 @@ exports.getPublicTestInSeriesPublic = async (req, res) => {
       startTime: test.startTime,
       endTime: test.endTime,
       resultPublishTime: test.resultPublishTime,
+      // First two tests are free
+      isFree: testIndex < 2,
       testState, // Add test state
       hasAccess: false, // Always false for public access
       sections: (test.sections || []).map(section => ({

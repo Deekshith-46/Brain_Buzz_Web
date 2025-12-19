@@ -101,10 +101,6 @@ const testSchema = new mongoose.Schema(
       type: Date,
     },
     sections: [sectionSchema],
-    isFree: {
-      type: Boolean,
-      default: false
-    },
   },
   { _id: true }
 );
@@ -145,19 +141,20 @@ const testSeriesSchema = new Schema(
       required: true,
       trim: true,
     },
-    maxTests: {
-      type: Number,
-      required: true,
-    },
+
     description: {
       type: String,
       trim: true,
     },
-    price: {
+    originalPrice: {
     type: Number,
     required: true,
     default: 0,
     min: 0
+  },
+  finalPrice: {
+    type: Number,
+    default: 0
   },
   discount: {
     type: {
@@ -175,13 +172,17 @@ const testSeriesSchema = new Schema(
       default: null
     }
   },
-    language: {
+    languages: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Language',
-    },
+    }],
     validity: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ValidityOption',
+    },
+    noOfTests: {
+      type: Number,
+      required: true,
     },
     tests: [testSchema],
     isActive: {
@@ -194,24 +195,6 @@ const testSeriesSchema = new Schema(
   }
 );
 
-// Add a virtual for final price
-testSeriesSchema.virtual('finalPrice').get(function() {
-  if (!this.discount || !this.discount.type) return this.price;
-  
-  const now = new Date();
-  if (this.discount.validUntil && new Date(this.discount.validUntil) < now) {
-    return this.price; // Discount expired
-  }
-  
-  let discountAmount = 0;
-  if (this.discount.type === 'percentage') {
-    discountAmount = (this.price * this.discount.value) / 100;
-  } else {
-    discountAmount = this.discount.value;
-  }
-  
-  return Math.max(0, this.price - discountAmount);
-});
 
 // Add a pre-save hook to validate categories and subcategories match the content type
 testSeriesSchema.pre('save', async function(next) {
@@ -235,6 +218,24 @@ testSeriesSchema.pre('save', async function(next) {
     }
   }
   
+  next();
+});
+
+// Add a pre-save hook to automatically calculate and update finalPrice
+testSeriesSchema.pre('save', function(next) {
+  // Calculate finalPrice based on originalPrice and discount
+  const basePrice = this.originalPrice || 0;
+  let finalPrice = basePrice;
+  
+  if (this.discount?.type === "percentage") {
+    finalPrice = basePrice - (basePrice * this.discount.value) / 100;
+  }
+  
+  if (this.discount?.type === "fixed") {
+    finalPrice = basePrice - this.discount.value;
+  }
+  
+  this.finalPrice = Math.max(finalPrice, 0);
   next();
 });
 

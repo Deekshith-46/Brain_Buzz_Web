@@ -10,12 +10,12 @@ const {
   getPublicTestInSeriesPublic // New controller function for public access
 } = require('../../controllers/User/testSeriesPublicController');
 
-// Public list of active Test Series (no auth required)
-router.get('/', listPublicTestSeries);
+// List of active Test Series (requires user authentication)
+router.get('/', userAuthMiddleware, listPublicTestSeries);
 
-// Public details for a single Test Series (no auth required)
-router.get('/:seriesId', getPublicTestSeriesById);
-router.get('/public/:seriesId/tests/:testId', getPublicTestInSeriesPublic); // New public endpoint
+// Details for a single Test Series (requires user authentication)
+router.get('/:seriesId', userAuthMiddleware, getPublicTestSeriesById);
+router.get('/public/:seriesId/tests/:testId', getPublicTestInSeriesPublic); // Public endpoint
 
 // Test details; video URL only for authenticated & paid users
 router.get('/:seriesId/tests/:testId', userAuthMiddleware, getPublicTestInSeries);
