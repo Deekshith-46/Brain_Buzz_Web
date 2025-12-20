@@ -13,6 +13,9 @@ require('./models/Course/PreviousQuestionPaper');
 // Load Banner model
 require('./models/Banner');
 
+// Database middleware
+const dbMiddleware = require('./middlewares/dbMiddleware');
+
 const adminRoutes = require('./routes/Admin/adminRoutes');
 const adminAuthRoutes = require('./routes/Admin/authRoutes');
 const adminCategoryRoutes = require('./routes/Admin/categoryRoutes');
@@ -58,6 +61,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(morgan('dev'));
 
+// Database connection middleware
+app.use(dbMiddleware);
+
 app.get('/', (req, res) => {
   res.json({ message: 'Brain Buzz API is running' });
 });
@@ -100,6 +106,10 @@ app.use('/api/admin/exams', adminExamRoutes);
 app.use('/api/admin/subjects', adminSubjectRoutes);
 app.use('/api/admin/previous-question-papers', adminPYQRoutes);
 app.use('/api/v1/previous-question-papers', userPYQRoutes);
+
+// Test Routes
+const testRoutes = require('./routes/User/testRoutes');
+app.use('/api', testRoutes);
 
 // Banner Routes
 const adminBannerRoutes = require('./routes/Admin/bannerRoutes');

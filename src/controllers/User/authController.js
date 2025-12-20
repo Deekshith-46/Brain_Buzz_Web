@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/User/User');
+const { handleDatabaseError } = require('../../utils/errorHandler');
 
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -73,8 +74,11 @@ exports.registerUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error registering user:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
 
@@ -117,8 +121,11 @@ exports.loginUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error logging in user:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
 
@@ -126,7 +133,10 @@ exports.getCurrentUserProfile = async (req, res) => {
   try {
     return res.status(200).json({ data: req.user });
   } catch (error) {
-    console.error('Error getting user profile:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
