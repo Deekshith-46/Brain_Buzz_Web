@@ -17,9 +17,11 @@ const {
   deleteClass,
   deleteStudyMaterial,
   publishCourse,
+  unpublishCourse,
   uploadClassMedia,
   updateCourseDescriptions,
-  createFullCourse
+  createFullCourse,
+  testUpdateCourseActiveStatus
 } = require('../../controllers/Admin/courseController');
 const adminAuthMiddleware = require('../../middlewares/Admin/authMiddleware');
 const upload = require('../../middlewares/uploadMiddleware');
@@ -70,8 +72,11 @@ router.put(
   '/:id/classes/:classId',
   upload.fields([
     { name: 'classThumbnail', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 },
     { name: 'classLecturePic', maxCount: 1 },
+    { name: 'lecturePhoto', maxCount: 1 },
     { name: 'classVideo', maxCount: 1 },
+    { name: 'video', maxCount: 1 },
   ]),
   updateClass
 );
@@ -86,6 +91,8 @@ router.put(
 );
 router.delete('/:id/classes/:classId', deleteClass);
 router.patch('/:id/publish', publishCourse);
+router.patch('/:id/unpublish', unpublishCourse);
+router.patch('/:id/test-active-status', testUpdateCourseActiveStatus);
 
 // Legacy all-in-one create/update if needed
 router.post(

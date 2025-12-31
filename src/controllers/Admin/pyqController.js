@@ -1,5 +1,11 @@
 const PreviousQuestionPaper = require('../../models/Course/PreviousQuestionPaper');
+const Category = require('../../models/Course/Category');
+const SubCategory = require('../../models/Course/SubCategory');
+const Language = require('../../models/Course/Language');
 const cloudinary = require('../../config/cloudinary');
+
+// Helper function to escape regex special characters
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|\[\]\\]/g, '\\$&');
 
 const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   return new Promise((resolve, reject) => {
@@ -17,35 +23,8 @@ const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   });
 };
 
-// Helper function to parse PYQ payload from form data
-const parsePYQPayload = (req) => {
-  if (!req.body.pyq) {
-    throw new Error('PYQ data is required in form-data');
-  }
-  
-  let parsed;
-  try {
-    parsed = JSON.parse(req.body.pyq);
-  } catch (e) {
-    throw new Error('Invalid JSON in pyq field');
-  }
-  
-  return parsed;
-};
-
 exports.createPYQ = async (req, res) => {
   try {
-    let parsed;
-    try {
-      parsed = parsePYQPayload(req);
-    } catch (e) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid request data',
-        error: e.message
-      });
-    }
-
     const {
       categoryId,
       subCategoryId,
@@ -53,8 +32,9 @@ exports.createPYQ = async (req, res) => {
       examId,
       subjectId,
       date,
-      description
-    } = parsed;
+      description,
+      languageId
+    } = req.body;
 
     // Validate required fields
     if (!categoryId) {
@@ -71,6 +51,17 @@ exports.createPYQ = async (req, res) => {
 
     if (!date) {
       return res.status(400).json({ success: false, message: 'Date is required' });
+    }
+
+    // Validate languageId if provided
+    if (languageId) {
+      const language = await Language.findById(languageId);
+      if (!language) {
+        return res.status(404).json({
+          success: false,
+          message: 'Language not found'
+        });
+      }
     }
 
     // Handle thumbnail upload
@@ -124,6 +115,7 @@ exports.createPYQ = async (req, res) => {
       subjectId: subjectId || null,
       date,
       description,
+      languageId,
       thumbnailUrl,
       fileUrl
     });
@@ -140,19 +132,27 @@ exports.createPYQ = async (req, res) => {
 
 exports.updatePYQ = async (req, res) => {
   try {
+    // Get all possible update fields from req.body
+    const { categoryId, subCategoryId, paperCategory, examId, subjectId, date, description, languageId } = req.body;
     const updateData = {};
     
-    // Parse PYQ data if provided
-    if (req.body.pyq) {
-      let parsed;
-      try {
-        parsed = JSON.parse(req.body.pyq);
-        Object.assign(updateData, parsed);
-      } catch (e) {
-        return res.status(400).json({
+    // Only add fields that were provided in the request
+    if (categoryId) updateData.categoryId = categoryId;
+    if (subCategoryId) updateData.subCategoryId = subCategoryId;
+    if (paperCategory) updateData.paperCategory = paperCategory;
+    if (examId) updateData.examId = examId;
+    if (subjectId) updateData.subjectId = subjectId;
+    if (date) updateData.date = date;
+    if (description) updateData.description = description;
+    if (languageId) updateData.languageId = languageId;
+
+    // Validate languageId if provided
+    if (updateData.languageId) {
+      const language = await Language.findById(updateData.languageId);
+      if (!language) {
+        return res.status(404).json({
           success: false,
-          message: 'Invalid JSON in pyq field',
-          error: e.message
+          message: 'Language not found'
         });
       }
     }
@@ -233,10 +233,79 @@ exports.listPYQ = async (req, res) => {
     });
 
     const papers = await PreviousQuestionPaper.find(filters)
-      .populate('examId subjectId categoryId subCategoryId');
+      .populate('examId subjectId categoryId subCategoryId languageId languages');
 
     res.json({ success: true, data: papers });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get distinct categories for previous question papers (admin - shows all papers regardless of active status)
+exports.getPYQCategories = async (req, res) => {
+  try {
+    // Find PYQs (including inactive) and get distinct categories
+    const papers = await PreviousQuestionPaper.find({}).populate('categoryId', 'name slug description thumbnailUrl');
+
+    // Extract unique categories
+    const categories = [];
+    const categoryIds = new Set();
+    
+    papers.forEach(paper => {
+      if (paper.categoryId) {
+        if (!categoryIds.has(paper.categoryId._id.toString())) {
+          categoryIds.add(paper.categoryId._id.toString());
+          categories.push({
+            _id: paper.categoryId._id,
+            name: paper.categoryId.name,
+            slug: paper.categoryId.slug,
+            description: paper.categoryId.description,
+            thumbnailUrl: paper.categoryId.thumbnailUrl
+          });
+        }
+      }
+    });
+
+    return res.status(200).json({ data: categories });
+  } catch (error) {
+    console.error('Error fetching PYQ categories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct subcategories for previous question papers based on category (admin - shows all papers regardless of active status)
+exports.getPYQSubCategories = async (req, res) => {
+  try {
+    const { category } = req.query;
+    
+    const filter = {
+      categoryId: category
+    };
+
+    const papers = await PreviousQuestionPaper.find(filter).populate('subCategoryId', 'name slug description thumbnailUrl');
+
+    // Extract unique subcategories
+    const subCategories = [];
+    const subCategoryIds = new Set();
+    
+    papers.forEach(paper => {
+      if (paper.subCategoryId) {
+        if (!subCategoryIds.has(paper.subCategoryId._id.toString())) {
+          subCategoryIds.add(paper.subCategoryId._id.toString());
+          subCategories.push({
+            _id: paper.subCategoryId._id,
+            name: paper.subCategoryId.name,
+            slug: paper.subCategoryId.slug,
+            description: paper.subCategoryId.description,
+            thumbnailUrl: paper.subCategoryId.thumbnailUrl
+          });
+        }
+      }
+    });
+
+    return res.status(200).json({ data: subCategories });
+  } catch (error) {
+    console.error('Error fetching PYQ subcategories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

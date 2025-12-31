@@ -7,6 +7,7 @@ const {
   getUserProfile,
   updateUserProfile,
   deleteUserProfile,
+  getAllUserDetails,
   getMyCourses,
   getMyTestSeries,
   getMyPublications,
@@ -21,6 +22,7 @@ router.put('/profile', userAuthMiddleware, updateUserProfile);
 router.delete('/profile', userAuthMiddleware, deleteUserProfile);
 
 // My Content routes
+router.get('/all-details', userAuthMiddleware, getAllUserDetails);
 router.get('/my-courses', userAuthMiddleware, getMyCourses);
 router.get('/my-test-series', userAuthMiddleware, getMyTestSeries);
 router.get('/my-publications', userAuthMiddleware, getMyPublications);

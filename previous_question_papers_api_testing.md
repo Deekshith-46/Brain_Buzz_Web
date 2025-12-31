@@ -5,10 +5,10 @@ This guide provides step-by-step instructions for testing all PYQ-related APIs, 
 ## Important Note on Request Format
 
 All PYQ creation and update requests must follow a specific format:
-1. Metadata (categoryId, subCategoryId, paperCategory, etc.) must be sent as a JSON string in a field called `pyq`
+1. Metadata (categoryId, subCategoryId, paperCategory, etc.) must be sent as individual form-data fields
 2. Files (thumbnail and paper) must be sent as separate multipart form data fields
 
-This is different from some other APIs in the system that accept flat form fields.
+This allows direct field mapping without JSON parsing.
 
 ## Base URL
 ```
@@ -205,6 +205,7 @@ Before creating a PYQ, you need:
 1. A Category with contentType "PYQ_EBOOK"
 2. A SubCategory under that Category
 3. (Optional) An Exam and Subject if paperCategory is "EXAM"
+4. (Optional) A Language if you want to associate a specific language with the PYQ
 
 ### 3.1 Create PYQ with EXAM Category
 **Endpoint:** `POST /api/admin/previous-question-papers`  
@@ -213,7 +214,14 @@ Before creating a PYQ, you need:
 - `Content-Type: multipart/form-data`
 
 **Form Data:**
-- `pyq`: `{"categoryId":"category_id_here","subCategoryId":"subcategory_id_here","paperCategory":"EXAM","examId":"exam_id_here","subjectId":"subject_id_here","date":"2023-12-01","description":"UPSC History Prelims 2023"}`
+- `categoryId`: category_id_here
+- `subCategoryId`: subcategory_id_here
+- `paperCategory`: EXAM
+- `examId`: exam_id_here
+- `subjectId`: subject_id_here
+- `languageId`: language_id_here
+- `date`: 2023-12-01
+- `description`: UPSC History Prelims 2023
 - `thumbnail`: (file upload - image)
 - `paper`: (file upload - PDF)
 
@@ -230,11 +238,13 @@ Before creating a PYQ, you need:
     "paperCategory": "EXAM",
     "examId": "exam_id",
     "subjectId": "subject_id",
+    "languageId": "language_id",
     "date": "2023-12-01T00:00:00.000Z",
     "description": "UPSC History Prelims 2023",
     "thumbnailUrl": "thumbnail_url",
     "fileUrl": "file_url",
     "isActive": true,
+    "languages": [],
     "createdAt": "timestamp",
     "updatedAt": "timestamp"
   }
@@ -248,7 +258,12 @@ Before creating a PYQ, you need:
 - `Content-Type: multipart/form-data`
 
 **Form Data:**
-- `pyq`: `{"categoryId":"category_id_here","subCategoryId":"subcategory_id_here","paperCategory":"LATEST","date":"2023-12-01","description":"Latest Current Affairs December 2023"}`
+- `categoryId`: category_id_here
+- `subCategoryId`: subcategory_id_here
+- `paperCategory`: LATEST
+- `languageId`: language_id_here
+- `date`: 2023-12-01
+- `description`: Latest Current Affairs December 2023
 - `thumbnail`: (file upload - image)
 - `paper`: (file upload - PDF)
 
@@ -265,11 +280,13 @@ Before creating a PYQ, you need:
     "paperCategory": "LATEST",
     "examId": null,
     "subjectId": null,
+    "languageId": "language_id",
     "date": "2023-12-01T00:00:00.000Z",
     "description": "Latest Current Affairs December 2023",
     "thumbnailUrl": "thumbnail_url",
     "fileUrl": "file_url",
     "isActive": true,
+    "languages": [],
     "createdAt": "timestamp",
     "updatedAt": "timestamp"
   }
@@ -301,11 +318,21 @@ Before creating a PYQ, you need:
       "paperCategory": "EXAM",
       "examId": "exam_id",
       "subjectId": "subject_id",
+      "languageId": {
+        "_id": "language_id",
+        "name": "English",
+        "code": "en",
+        "isActive": true,
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "__v": 0
+      },
       "date": "2023-12-01T00:00:00.000Z",
       "description": "UPSC History Prelims 2023",
       "thumbnailUrl": "thumbnail_url",
       "fileUrl": "file_url",
       "isActive": true,
+      "languages": [],
       "createdAt": "timestamp",
       "updatedAt": "timestamp",
       "examId": {
@@ -328,12 +355,13 @@ Before creating a PYQ, you need:
 - `Content-Type: multipart/form-data`
 
 **Form Data (any combination of fields):**
-- `pyq`: `{"description":"Updated description","date":"2023-12-15"}`
+- `description`: Updated description
+- `date`: 2023-12-15
 - `thumbnail`: (file upload - new thumbnail image)
 - `paper`: (file upload - new paper PDF)
 
 **Expected Response:**
-```json
+``json
 {
   "success": true,
   "data": {
@@ -344,11 +372,13 @@ Before creating a PYQ, you need:
     "paperCategory": "EXAM",
     "examId": "exam_id",
     "subjectId": "subject_id",
+    "languageId": "language_id",
     "date": "2023-12-15T00:00:00.000Z",
     "description": "Updated description",
     "thumbnailUrl": "updated_thumbnail_url",
     "fileUrl": "updated_file_url",
     "isActive": true,
+    "languages": [],
     "createdAt": "timestamp",
     "updatedAt": "timestamp"
   }
@@ -395,11 +425,21 @@ Before creating a PYQ, you need:
       "paperCategory": "EXAM",
       "examId": "exam_id",
       "subjectId": "subject_id",
+      "languageId": {
+        "_id": "language_id",
+        "name": "English",
+        "code": "en",
+        "isActive": true,
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "__v": 0
+      },
       "date": "2023-12-01T00:00:00.000Z",
       "description": "UPSC History Prelims 2023",
       "thumbnailUrl": "thumbnail_url",
       "fileUrl": "file_url",
       "isActive": true,
+      "languages": [],
       "createdAt": "timestamp",
       "updatedAt": "timestamp",
       "examId": {
@@ -462,7 +502,14 @@ Here's a complete example of how to format your request:
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- `pyq`: `{"categoryId":"654321abcdef123456789012","subCategoryId":"789012abcdef345678901234","paperCategory":"EXAM","examId":"123456abcdef789012345678","subjectId":"234567abcdef890123456789","date":"2023-12-01","description":"UPSC History Prelims 2023"}`
+- `categoryId`: 654321abcdef123456789012
+- `subCategoryId`: 789012abcdef345678901234
+- `paperCategory`: EXAM
+- `examId`: 123456abcdef789012345678
+- `subjectId`: 234567abcdef890123456789
+- `languageId`: 345678abcdef901234567890
+- `date`: 2023-12-01
+- `description`: UPSC History Prelims 2023
 - `thumbnail`: (select your image file)
 - `paper`: (select your PDF file)
 
@@ -477,14 +524,14 @@ Replace the IDs with actual IDs from your database.
 2. Make sure the `pyq` field contains all required metadata as a JSON string
 3. Verify that the paper file is not corrupted and is within size limits
 
-### 2. "Invalid JSON in pyq field" Error
+### 2. Field validation errors
 
-**Cause:** This error occurs when the `pyq` field does not contain valid JSON.
+**Cause:** This error occurs when required fields are missing or invalid.
 
 **Solution:**
-1. Ensure the `pyq` field contains a properly formatted JSON string
-2. Escape quotes properly if needed
-3. Validate the JSON format before sending the request
+1. Ensure all required fields are provided as individual form-data fields
+2. Verify that field names match exactly (camelCase format)
+3. Check that field values are valid
 
 ### 3. "Category ID is required" or Similar Validation Errors
 
@@ -493,3 +540,4 @@ Replace the IDs with actual IDs from your database.
 **Solution:**
 1. Verify that all required fields (categoryId, subCategoryId, paperCategory, date) are present in the `pyq` JSON
 2. Check that field names match exactly (camelCase format)
+3. If including languageId, ensure the language exists in the database (validation will fail if the languageId doesn't exist)

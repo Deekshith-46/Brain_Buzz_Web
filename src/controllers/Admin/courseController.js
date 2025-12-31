@@ -770,7 +770,6 @@ exports.updateTutor = async (req, res) => {
 
     const course = await Course.findById(id);
     if (!course) return res.status(404).json({ message: 'Course not found' });
-
     const tutor = course.tutors.id(tutorId);
     if (!tutor) return res.status(404).json({ message: 'Tutor not found' });
 
@@ -834,14 +833,17 @@ exports.updateClass = async (req, res) => {
     const cls = course.classes.id(classId);
     if (!cls) return res.status(404).json({ message: 'Class not found' });
 
+    // Update text fields
     if (title) cls.title = title;
     if (topic) cls.topic = topic;
     if (typeof order !== 'undefined') cls.order = order;
 
-    const thumb = req.files?.classThumbnail?.[0];
-    const lecture = req.files?.classLecturePic?.[0];
-    const video = req.files?.classVideo?.[0];
+    // Handle file uploads (supporting both the old field names and the new ones from uploadClassMedia)
+    const thumb = req.files?.classThumbnail?.[0] || req.files?.thumbnail?.[0];
+    const lecture = req.files?.classLecturePic?.[0] || req.files?.lecturePhoto?.[0];
+    const video = req.files?.classVideo?.[0] || req.files?.video?.[0];
 
+    // Upload thumbnail if provided
     if (thumb) {
       const uploadResult = await uploadToCloudinary(
         thumb.buffer,
@@ -850,6 +852,8 @@ exports.updateClass = async (req, res) => {
       );
       cls.thumbnailUrl = uploadResult.secure_url;
     }
+    
+    // Upload lecture photo if provided
     if (lecture) {
       const uploadResult = await uploadToCloudinary(
         lecture.buffer,
@@ -858,6 +862,8 @@ exports.updateClass = async (req, res) => {
       );
       cls.lecturePhotoUrl = uploadResult.secure_url;
     }
+    
+    // Upload video if provided
     if (video) {
       const uploadResult = await uploadToCloudinary(
         video.buffer,
@@ -874,7 +880,10 @@ exports.updateClass = async (req, res) => {
       .populate('languages', 'name code')
       .populate('validities', 'label durationInDays');
 
-    return res.status(200).json({ message: 'Class updated', data: populatedCourse });
+    return res.status(200).json({ 
+      message: 'Class updated successfully', 
+      data: populatedCourse 
+    });
   } catch (error) {
     console.error('Error updating class:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -931,8 +940,28 @@ exports.getCourses = async (req, res) => {
       .populate('subCategories', 'name slug')
       .populate('languages', 'name code')
       .populate('validities', 'label durationInDays');
-
-    return res.status(200).json({ data: courses });
+    
+    // Process courses to return only specified fields
+    const processedCourses = courses.map(course => {
+      // Calculate finalPrice
+      const discountAmount = typeof course.discountPrice === 'number' && course.discountPrice >= 0
+        ? course.discountPrice
+        : 0;
+      const finalPrice = Math.max(0, course.originalPrice - discountAmount);
+    
+      return {
+        _id: course._id,
+        thumbnail: course.thumbnailUrl,
+        name: course.name,
+        originalPrice: course.originalPrice,
+        discountPrice: course.discountPrice,
+        finalPrice: finalPrice,
+        languages: course.languages,
+        validities: course.validities
+      };
+    });
+    
+    return res.status(200).json({ data: processedCourses });
   } catch (error) {
     console.error('Error fetching courses:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
@@ -954,9 +983,116 @@ exports.getCourseById = async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    return res.status(200).json({ data: course });
+    // For admin, all classes are accessible
+    const courseObj = course.toObject();
+    
+    // Process classes: Admin has full access to all classes
+    courseObj.classes = courseObj.classes.map(cls => ({
+      ...cls,
+      isLocked: false,
+      hasAccess: true,
+    }));
+
+    return res.status(200).json({ data: courseObj });
   } catch (error) {
     console.error('Error fetching course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct categories for courses (admin - shows all courses regardless of active status)
+exports.getCourseCategories = async (req, res) => {
+  try {
+    const { contentType } = req.query;
+    
+    // Default to ONLINE_COURSE
+    const type = contentType || 'ONLINE_COURSE';
+    
+    // Find courses (including inactive) and get distinct categories
+    const courses = await Course.find({ 
+      contentType: type 
+    }).populate('categories', 'name slug description thumbnailUrl');
+
+    // Extract unique categories
+    const categories = [];
+    const categoryIds = new Set();
+    
+    courses.forEach(course => {
+      if (course.categories) {
+        course.categories.forEach(cat => {
+          if (!categoryIds.has(cat._id.toString())) {
+            categoryIds.add(cat._id.toString());
+            categories.push({
+              _id: cat._id,
+              name: cat.name,
+              slug: cat.slug,
+              description: cat.description,
+              thumbnailUrl: cat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: categories });
+  } catch (error) {
+    console.error('Error fetching course categories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct subcategories for courses based on category and language (admin - shows all courses regardless of active status)
+exports.getCourseSubCategories = async (req, res) => {
+  try {
+    const { category, language, lang } = req.query;
+    
+    const filter = {
+      contentType: 'ONLINE_COURSE',
+      categories: category
+    };
+
+    // Handle language filter
+    if (language) {
+      filter.languages = language;
+    } else if (lang) {
+      const escapeRegex = (s) => s.replace(/[.*+?^${}()|[]\\]/g, '\\$&');
+      const langDoc = await Language.findOne({
+        $or: [
+          { code: lang.toLowerCase() },
+          { name: { $regex: `^${escapeRegex(lang)}$`, $options: 'i' } },
+        ],
+      });
+      if (langDoc) {
+        filter.languages = langDoc._id;
+      }
+    }
+
+    const courses = await Course.find(filter).populate('subCategories', 'name slug description thumbnailUrl');
+
+    // Extract unique subcategories
+    const subCategories = [];
+    const subCategoryIds = new Set();
+    
+    courses.forEach(course => {
+      if (course.subCategories) {
+        course.subCategories.forEach(subCat => {
+          if (!subCategoryIds.has(subCat._id.toString())) {
+            subCategoryIds.add(subCat._id.toString());
+            subCategories.push({
+              _id: subCat._id,
+              name: subCat.name,
+              slug: subCat.slug,
+              description: subCat.description,
+              thumbnailUrl: subCat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: subCategories });
+  } catch (error) {
+    console.error('Error fetching course subcategories:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -1443,5 +1579,100 @@ exports.uploadClassMedia = async (req, res) => {
   } catch (error) {
     console.error('Error uploading class media:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Unpublish course (set isActive to false)
+exports.unpublishCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+    
+    // Update the course to be inactive
+    course.isActive = false;
+    await course.save();
+    
+    const populatedCourse = await Course.findById(id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+    
+    return res.status(200).json({
+      message: 'Course unpublished successfully',
+      data: populatedCourse,
+    });
+  } catch (error) {
+    console.error('Error unpublishing course:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Test function to debug course isActive updates
+exports.testUpdateCourseActiveStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+    
+    console.log('Received update request for course:', id);
+    console.log('Requested isActive value:', isActive);
+    console.log('Type of isActive:', typeof isActive);
+    
+    // Validate input
+    if (typeof isActive === 'undefined') {
+      return res.status(400).json({ 
+        message: 'isActive field is required', 
+        received: req.body 
+      });
+    }
+    
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ 
+        message: 'isActive must be a boolean value (true or false)', 
+        received: isActive,
+        type: typeof isActive
+      });
+    }
+    
+    // Find the course
+    const course = await Course.findById(id);
+    if (!course) {
+      return res.status(404).json({ message: 'Course not found' });
+    }
+    
+    console.log('Current course isActive value:', course.isActive);
+    
+    // Update the course
+    course.isActive = isActive;
+    const savedCourse = await course.save();
+    
+    console.log('Updated course isActive value:', savedCourse.isActive);
+    
+    const populatedCourse = await Course.findById(id)
+      .populate('categories', 'name slug')
+      .populate('subCategories', 'name slug')
+      .populate('languages', 'name code')
+      .populate('validities', 'label durationInDays');
+    
+    return res.status(200).json({
+      message: `Course isActive status updated to ${isActive}`,
+      data: populatedCourse,
+      debug: {
+        requestedValue: isActive,
+        previousValue: course.isActive,
+        updatedValue: savedCourse.isActive
+      }
+    });
+  } catch (error) {
+    console.error('Error updating course isActive status:', error);
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };

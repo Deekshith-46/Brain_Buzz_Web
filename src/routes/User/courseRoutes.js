@@ -1,5 +1,10 @@
 const express = require('express');
-const { listCourses, getCourseById, getCourseClass, initiateCoursePurchase } = require('../../controllers/User/courseController');
+const { 
+  listCourses, 
+  getCourseById, 
+  getCourseClass, 
+  initiateCoursePurchase
+} = require('../../controllers/User/courseController');
 const userAuthMiddleware = require('../../middlewares/User/authMiddleware');
 const checkContentAccess = require('../../middlewares/checkContentAccess');
 

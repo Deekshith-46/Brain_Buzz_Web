@@ -48,82 +48,58 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 - `validityIds[]`: (array of validity option IDs)
 - `thumbnail`: (select your image file)
 
-**Note:** This creates a course shell without classes, tutors, or study materials. You can add these separately using dedicated endpoints.
-
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Course shell created successfully",
+  "message": "Course draft created. Proceed with next steps.",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Complete UPSC Prelims Course",
-    "courseType": "PRELIMS",
+    "name": "Draft Course 1700000000000",
     "startDate": "2025-01-15T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
+    "categories": ["category_id_1"],
+    "subCategories": ["subcategory_id_1"],
     "languages": [],
     "validities": [],
     "thumbnailUrl": "https://res.cloudinary.com/.../thumbnail.jpg",
-    "originalPrice": 4999,
-    "discountPrice": 999,
-    "pricingNote": "Limited time offer",
-    "shortDescription": "Comprehensive course covering all UPSC Prelims topics",
-    "detailedDescription": "Detailed course description with syllabus...",
+    "originalPrice": 0,
+    "discountPrice": 0,
+    "discountPercent": 0,
+    "pricingNote": "",
+    "shortDescription": "",
+    "detailedDescription": "",
     "tutors": [],
     "classes": [],
     "studyMaterials": [],
     "isActive": true,
     "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4000
+    "updatedAt": "timestamp"
   }
 }
 ```
 
-#### 1.2 Create Complete Course in One API Call (Alternative Approach)
-**Endpoint:** `POST /api/admin/courses/full`  
+#### 1.2 Update Course Basics
+**Endpoint:** `PUT /api/admin/courses/:id/basics`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- Individual form fields for basic course information:
-  - `name`: "Complete UPSC Prelims Course"
-  - `courseType`: "PRELIMS"
-  - `startDate`: "2025-01-15T00:00:00Z"
-  - `originalPrice`: 4999
-  - `discountPrice`: 999
-  - `pricingNote`: "Limited time offer"
-  - `shortDescription`: "Comprehensive course covering all UPSC Prelims topics"
-  - `detailedDescription`: "Detailed course description with syllabus..."
-  - `isActive`: true
-  - `accessType`: "PAID"
-- JSON arrays for complex data structures:
-  - `categoryIds`: `[{"categoryId1"}, {"categoryId2"}]`
-  - `subCategoryIds`: `[{"subCategoryId1"}, {"subCategoryId2"}]`
-  - `languageIds`: `[{"languageId1"}]`
-  - `validityIds`: `[{"validityId1"}]`
-  - `classes`: `[{"title": "Introduction to Indian Polity", "topic": "Polity Basics", "order": 1}, {"title": "Indian Constitution", "topic": "Polity", "order": 2}]`
-  - `tutors`: `[{"name": "Dr. Ramesh Sharma", "qualification": "PhD Political Science", "subject": "Polity"}, {"name": "Prof. Sunita Patel", "qualification": "M.A. History", "subject": "History"}]`
-  - `studyMaterials`: `[{"title": "Polity Notes", "description": "Comprehensive notes on Indian Polity"}, {"title": "History Notes", "description": "Detailed history notes"}]`
-- File uploads:
-  - `thumbnail`: (select your image file)
-  - `tutorImages[]`: (select tutor images, matched by index with tutors array)
-  - `classThumbnails[]`: (select class thumbnails, matched by index with classes array)
-  - `classLecturePics[]`: (select lecture pictures, matched by index with classes array)
-  - `classVideos[]`: (select class videos, matched by index with classes array)
-  - `studyMaterialFiles[]`: (select study material files)
-
-**Note:** This approach creates a complete course with all components in one API call. However, it's recommended to use the shell approach for better control and easier debugging.
+- `name`: "Complete UPSC Prelims Course"
+- `originalPrice`: 4999
+- `discountPrice`: 999
+- `courseType`: "PRELIMS"
+- `languageIds[]`: (array of language IDs)
+- `validityIds[]`: (array of validity option IDs)
+- `thumbnail`: (select your image file)
 
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Complete course created successfully",
+  "message": "Course basic details updated",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
@@ -131,72 +107,22 @@ User endpoints for course access require a valid user JWT token. Additionally, t
     "name": "Complete UPSC Prelims Course",
     "courseType": "PRELIMS",
     "startDate": "2025-01-15T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../thumbnail.jpg",
+    "categories": ["category_id_1"],
+    "subCategories": ["subcategory_id_1"],
+    "languages": ["language_id_1"],
+    "validities": ["validity_id_1"],
+    "thumbnailUrl": "https://res.cloudinary.com/.../updated_thumbnail.jpg",
     "originalPrice": 4999,
     "discountPrice": 999,
-    "pricingNote": "Limited time offer",
-    "shortDescription": "Comprehensive course covering all UPSC Prelims topics",
-    "detailedDescription": "Detailed course description with syllabus...",
-    "tutors": [
-      {
-        "_id": "tutor_id_1",
-        "photoUrl": "https://res.cloudinary.com/.../tutor1.jpg",
-        "name": "Dr. Ramesh Sharma",
-        "qualification": "PhD Political Science",
-        "subject": "Polity"
-      },
-      {
-        "_id": "tutor_id_2",
-        "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-        "name": "Prof. Sunita Patel",
-        "qualification": "M.A. History",
-        "subject": "History"
-      }
-    ],
-    "classes": [
-      {
-        "_id": "class_id_1",
-        "title": "Introduction to Indian Polity",
-        "topic": "Polity Basics",
-        "order": 1,
-        "thumbnailUrl": "https://res.cloudinary.com/.../class1_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../class1_lecture.jpg",
-        "videoUrl": "https://res.cloudinary.com/.../class1_video.mp4",
-        "isFree": true
-      },
-      {
-        "_id": "class_id_2",
-        "title": "Indian Constitution",
-        "topic": "Polity",
-        "order": 2,
-        "thumbnailUrl": "https://res.cloudinary.com/.../class2_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../class2_lecture.jpg",
-        "videoUrl": "https://res.cloudinary.com/.../class2_video.mp4",
-        "isFree": true
-      }
-    ],
-    "studyMaterials": [
-      {
-        "_id": "material_id_1",
-        "title": "Polity Notes",
-        "description": "Comprehensive notes on Indian Polity",
-        "fileUrl": "https://res.cloudinary.com/.../polity_notes.pdf"
-      },
-      {
-        "_id": "material_id_2",
-        "title": "History Notes",
-        "description": "Detailed history notes",
-        "fileUrl": "https://res.cloudinary.com/.../history_notes.pdf"
-      }
-    ],
+    "pricingNote": "",
+    "shortDescription": "",
+    "detailedDescription": "",
+    "tutors": [],
+    "classes": [],
+    "studyMaterials": [],
     "isActive": true,
     "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4000
+    "updatedAt": "timestamp"
   }
 }
 ```
@@ -248,8 +174,8 @@ User endpoints for course access require a valid user JWT token. Additionally, t
   ],
   "meta": {
     "total": 1,
-    "totalInDatabase": 1,
-    "matchingFilter": 1
+    "page": 1,
+    "limit": 10
   }
 }
 ```
@@ -262,6 +188,7 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 **Expected Response:**
 ```json
 {
+  "success": true,
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
@@ -269,52 +196,87 @@ User endpoints for course access require a valid user JWT token. Additionally, t
     "name": "Complete UPSC Prelims Course",
     "courseType": "PRELIMS",
     "startDate": "2025-01-15T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
+    "categories": [
+      {
+        "_id": "category_id",
+        "name": "UPSC",
+        "slug": "upsc"
+      }
+    ],
+    "subCategories": [
+      {
+        "_id": "subcategory_id",
+        "name": "Prelims",
+        "slug": "prelims"
+      }
+    ],
+    "languages": [
+      {
+        "_id": "language_id",
+        "name": "English",
+        "code": "en"
+      }
+    ],
+    "validities": [
+      {
+        "_id": "validity_id",
+        "label": "6 Months",
+        "durationInDays": 180
+      }
+    ],
     "thumbnailUrl": "https://res.cloudinary.com/.../thumbnail.jpg",
     "originalPrice": 4999,
     "discountPrice": 999,
     "pricingNote": "Limited time offer",
     "shortDescription": "Comprehensive course covering all UPSC Prelims topics",
     "detailedDescription": "Detailed course description with syllabus...",
-    "tutors": [],
-    "classes": [],
-    "studyMaterials": [],
+    "tutors": [
+      {
+        "_id": "tutor_id",
+        "photoUrl": "https://res.cloudinary.com/.../tutor.jpg",
+        "name": "Dr. John Doe",
+        "qualification": "PhD",
+        "subject": "History"
+      }
+    ],
+    "classes": [
+      {
+        "_id": "class_id",
+        "title": "Introduction to Indian Polity",
+        "topic": "Polity",
+        "order": 1,
+        "thumbnailUrl": "https://res.cloudinary.com/.../class_thumb.jpg",
+        "lecturePhotoUrl": "https://res.cloudinary.com/.../class_lecture.jpg",
+        "videoUrl": "https://res.cloudinary.com/.../class_video.mp4",
+        "isFree": true,
+        "isLocked": false,
+        "hasAccess": true
+      }
+    ],
+    "studyMaterials": [
+      {
+        "_id": "material_id",
+        "title": "Polity Study Material.pdf",
+        "description": "Complete study material for polity",
+        "fileUrl": "https://res.cloudinary.com/.../polity.pdf"
+      }
+    ],
     "isActive": true,
     "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4000
+    "updatedAt": "timestamp"
   }
 }
 ```
 
-#### 1.5 Update Course Shell
-**Endpoint:** `PUT /api/admin/courses/:id`  
+#### 1.5 Update Entire Course
+**Endpoint:** `PATCH /api/admin/courses/:id/all-in-one`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: application/json`
+- `Content-Type: multipart/form-data`
 
-**Request Body (any combination of fields):**
-```json
-{
-  "name": "Updated UPSC Prelims Course",
-  "courseType": "PRELIMS_ADVANCED",
-  "startDate": "2025-02-01T00:00:00Z",
-  "originalPrice": 5999,
-  "discountPrice": 1299,
-  "pricingNote": "Early bird offer",
-  "shortDescription": "Advanced course covering all UPSC Prelims topics",
-  "detailedDescription": "Updated detailed course description with syllabus...",
-  "isActive": true,
-  "accessType": "PAID",
-  "categoryIds": ["categoryId1", "categoryId2"],
-  "subCategoryIds": ["subCategoryId1"],
-  "languageIds": ["languageId1"],
-  "validityIds": ["validityId1"]
-}
-```
+**Form Fields:**
+- All course fields as needed
+- File uploads for thumbnail, tutor images, class media, study materials
 
 **Expected Response:**
 ```json
@@ -326,140 +288,15 @@ User endpoints for course access require a valid user JWT token. Additionally, t
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
     "name": "Updated UPSC Prelims Course",
-    "courseType": "PRELIMS_ADVANCED",
-    "startDate": "2025-02-01T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../thumbnail.jpg",
-    "originalPrice": 5999,
-    "discountPrice": 1299,
-    "pricingNote": "Early bird offer",
-    "shortDescription": "Advanced course covering all UPSC Prelims topics",
-    "detailedDescription": "Updated detailed course description with syllabus...",
-    "tutors": [],
-    "classes": [],
-    "studyMaterials": [],
-    "isActive": true,
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4700
+    "...": "..."
   }
 }
 ```
 
-#### 1.6 Update Course Basic Information
-**Endpoint:** `PUT /api/admin/courses/:id/basics`  
-**Headers:** 
-- `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: multipart/form-data`
-
-**Form Fields (any combination):**
-- `name`: "Updated UPSC Prelims Course"
-- `courseType`: "PRELIMS_ADVANCED"
-- `startDate`: "2025-02-01T00:00:00Z"
-- `originalPrice`: 5999
-- `discountPrice`: 1299
-- `pricingNote`: "Early bird offer"
-- `shortDescription`: "Advanced course covering all UPSC Prelims topics"
-- `detailedDescription`: "Updated detailed course description with syllabus..."
-- `isActive`: true
-- `accessType`: "PAID"
-- `thumbnail`: (select your new image file)
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Course basic information updated successfully",
-  "data": {
-    "_id": "course_id",
-    "contentType": "ONLINE_COURSE",
-    "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "courseType": "PRELIMS_ADVANCED",
-    "startDate": "2025-02-01T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../new_thumbnail.jpg",
-    "originalPrice": 5999,
-    "discountPrice": 1299,
-    "pricingNote": "Early bird offer",
-    "shortDescription": "Advanced course covering all UPSC Prelims topics",
-    "detailedDescription": "Updated detailed course description with syllabus...",
-    "tutors": [],
-    "classes": [],
-    "studyMaterials": [],
-    "isActive": true,
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4700
-  }
-}
-```
-
-#### 1.7 Update Course Descriptions
-**Endpoint:** `PUT /api/admin/courses/:id/descriptions`  
-**Headers:** 
-- `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "shortDescription": "Updated short description",
-  "detailedDescription": "Updated detailed description with complete syllabus..."
-}
-```
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Course descriptions updated successfully",
-  "data": {
-    "_id": "course_id",
-    "contentType": "ONLINE_COURSE",
-    "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "courseType": "PRELIMS_ADVANCED",
-    "startDate": "2025-02-01T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../new_thumbnail.jpg",
-    "originalPrice": 5999,
-    "discountPrice": 1299,
-    "pricingNote": "Early bird offer",
-    "shortDescription": "Updated short description",
-    "detailedDescription": "Updated detailed description with complete syllabus...",
-    "tutors": [],
-    "classes": [],
-    "studyMaterials": [],
-    "isActive": true,
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4700
-  }
-}
-```
-
-#### 1.8 Publish Course
+#### 1.6 Publish Course
 **Endpoint:** `PATCH /api/admin/courses/:id/publish`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: application/json`
-
-**Request Body:**
-```json
-{
-  "isActive": true
-}
-```
 
 **Expected Response:**
 ```json
@@ -470,31 +307,35 @@ User endpoints for course access require a valid user JWT token. Additionally, t
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "courseType": "PRELIMS_ADVANCED",
-    "startDate": "2025-02-01T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../new_thumbnail.jpg",
-    "originalPrice": 5999,
-    "discountPrice": 1299,
-    "pricingNote": "Early bird offer",
-    "shortDescription": "Updated short description",
-    "detailedDescription": "Updated detailed description with complete syllabus...",
-    "tutors": [],
-    "classes": [],
-    "studyMaterials": [],
+    "name": "Complete UPSC Prelims Course",
     "isActive": true,
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4700
+    "...": "..."
   }
 }
 ```
 
-#### 1.9 Delete Course
+#### 1.7 Unpublish Course
+**Endpoint:** `PATCH /api/admin/courses/:id/unpublish`  
+**Headers:** 
+- `Authorization: Bearer <admin_jwt_token>`
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Course unpublished successfully",
+  "data": {
+    "_id": "course_id",
+    "contentType": "ONLINE_COURSE",
+    "accessType": "PAID",
+    "name": "Complete UPSC Prelims Course",
+    "isActive": false,
+    "...": "..."
+  }
+}
+```
+
+#### 1.8 Delete Course
 **Endpoint:** `DELETE /api/admin/courses/:id`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
@@ -502,6 +343,7 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 **Expected Response:**
 ```json
 {
+  "success": true,
   "message": "Course deleted successfully"
 }
 ```
@@ -515,35 +357,49 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- JSON array for tutors:
-  - `tutors`: `[{"name": "Dr. Ramesh Sharma", "qualification": "PhD Political Science", "subject": "Polity"}, {"name": "Prof. Sunita Patel", "qualification": "M.A. History", "subject": "History"}]`
-- File uploads:
-  - `tutorImages[]`: (select tutor images, matched by index with tutors array)
+- `tutors`: JSON array of tutor objects
+- `tutorImages[]`: (select tutor image files - matched by index)
+
+**Request Body (tutors field):**
+```json
+[
+  {
+    "name": "Dr. John Doe",
+    "qualification": "PhD",
+    "subject": "History"
+  },
+  {
+    "name": "Prof. Jane Smith",
+    "qualification": "M.Sc",
+    "subject": "Geography"
+  }
+]
+```
 
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Tutors added to course successfully",
+  "message": "Tutors added successfully",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
+    "name": "Complete UPSC Prelims Course",
     "tutors": [
       {
         "_id": "tutor_id_1",
         "photoUrl": "https://res.cloudinary.com/.../tutor1.jpg",
-        "name": "Dr. Ramesh Sharma",
-        "qualification": "PhD Political Science",
-        "subject": "Polity"
+        "name": "Dr. John Doe",
+        "qualification": "PhD",
+        "subject": "History"
       },
       {
         "_id": "tutor_id_2",
         "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-        "name": "Prof. Sunita Patel",
-        "qualification": "M.A. History",
-        "subject": "History"
+        "name": "Prof. Jane Smith",
+        "qualification": "M.Sc",
+        "subject": "Geography"
       }
     ],
     "...": "..."
@@ -558,37 +414,28 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- Individual form fields:
-  - `name`: "Dr. Updated Sharma"
-  - `qualification`: "PhD Political Science, M.A. Public Administration"
-  - `subject`: "Polity & Governance"
-- File uploads:
-  - `tutorImage`: (select new tutor image)
+- `name`: "Updated Tutor Name"
+- `qualification`: "Updated Qualification"
+- `subject`: "Updated Subject"
+- `tutorImage`: (select new tutor image)
 
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Tutor updated successfully",
+  "message": "Tutor updated",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
+    "name": "Complete UPSC Prelims Course",
     "tutors": [
       {
-        "_id": "tutor_id_1",
-        "photoUrl": "https://res.cloudinary.com/.../updated_tutor1.jpg",
-        "name": "Dr. Updated Sharma",
-        "qualification": "PhD Political Science, M.A. Public Administration",
-        "subject": "Polity & Governance"
-      },
-      {
-        "_id": "tutor_id_2",
-        "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-        "name": "Prof. Sunita Patel",
-        "qualification": "M.A. History",
-        "subject": "History"
+        "_id": "tutor_id",
+        "photoUrl": "https://res.cloudinary.com/.../updated_tutor.jpg",
+        "name": "Updated Tutor Name",
+        "qualification": "Updated Qualification",
+        "subject": "Updated Subject"
       }
     ],
     "...": "..."
@@ -605,21 +452,13 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 ```json
 {
   "success": true,
-  "message": "Tutor removed from course successfully",
+  "message": "Tutor deleted",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "tutors": [
-      {
-        "_id": "tutor_id_2",
-        "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-        "name": "Prof. Sunita Patel",
-        "qualification": "M.A. History",
-        "subject": "History"
-      }
-    ],
+    "name": "Complete UPSC Prelims Course",
+    "tutors": [],
     "...": "..."
   }
 }
@@ -628,42 +467,60 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 ### 3. CLASSES - Within a Course
 
 #### 3.1 Add Classes to Course
-**Note:** Only the first 2 classes in a course are automatically marked as free. The system automatically sets `isFree` to `true` for the first two classes based on their position, and `false` for subsequent classes. The `isFree` field is calculated dynamically and not stored in the database.
-
-**Important Design Decision:** The `isFree` field is intentionally NOT stored in the database. Instead, FREE/PAID access is derived at runtime based on the class's position. This approach ensures:
-- No database pollution with redundant fields
-- Future-proof flexibility (can easily change "first 2 free" to "first 3 free")
-- Clean separation between admin and user views
-- Seamless integration with payment systems
-
 **Endpoint:** `POST /api/admin/courses/:id/classes`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- JSON array for classes:
-  - `classes`: `[{"title": "Introduction to Indian Polity", "topic": "Polity Basics", "order": 1}, {"title": "Indian Constitution", "topic": "Polity", "order": 2}, {"title": "Parliament and State Legislatures", "topic": "Polity", "order": 3}]`
-- File uploads:
-  - `classThumbnails[]`: (select class thumbnails, matched by index with classes array)
-  - `classLecturePics[]`: (select lecture pictures, matched by index with classes array)
-  - `classVideos[]`: (select class videos, matched by index with classes array)
+- `classes`: JSON array of class objects
+- `classThumbnails[]`: (select class thumbnail files - matched by index)
+- `classLecturePics[]`: (select class lecture photo files - matched by index)
+- `classVideos[]`: (select class video files - matched by index)
+
+**Note:** Only the first 2 classes in a course are automatically marked as free. The system automatically sets `isFree` to `true` for the first two classes based on their position, and `false` for subsequent classes. The `isFree` field is calculated dynamically and not stored in the database.
+
+**Important Design Decision:** The `isFree` field is intentionally NOT stored in the database. Instead, FREE/PAID access is derived at runtime based on the class's position. This approach ensures:
+- No database pollution with redundant fields
+- Future-proof flexibility (can easily change "first 2 free" to "first 3 free")
+- Consistent business logic enforcement
+
+**Request Body (classes field):**
+```json
+[
+  {
+    "title": "Introduction to Indian Polity",
+    "topic": "Polity",
+    "order": 1
+  },
+  {
+    "title": "Indian Constitution",
+    "topic": "Polity",
+    "order": 2
+  },
+  {
+    "title": "Parliament and State Legislatures",
+    "topic": "Polity",
+    "order": 3
+  }
+]
+```
 
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Classes added to course successfully",
+  "message": "Classes added successfully",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
+    "name": "Complete UPSC Prelims Course",
     "classes": [
       {
         "_id": "class_id_1",
         "title": "Introduction to Indian Polity",
-        "topic": "Polity Basics",
+        "topic": "Polity",
         "order": 1,
         "thumbnailUrl": "https://res.cloudinary.com/.../class1_thumb.jpg",
         "lecturePhotoUrl": "https://res.cloudinary.com/.../class1_lecture.jpg",
@@ -700,9 +557,9 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 **Endpoint:** `PUT /api/admin/courses/:id/classes/:classId`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: application/json`
+- `Content-Type: application/json` or `Content-Type: multipart/form-data`
 
-**Request Body (any combination of fields):**
+**Request Body (JSON for text fields only):**
 ```json
 {
   "title": "Updated Introduction to Indian Polity",
@@ -710,6 +567,16 @@ User endpoints for course access require a valid user JWT token. Additionally, t
   "order": 1
 }
 ```
+
+**Form Fields (multipart/form-data for text fields and/or file uploads):**
+- Text fields (optional):
+  - `title`: (new class title)
+  - `topic`: (new class topic)
+  - `order`: (new class order)
+- File uploads (optional):
+  - `thumbnail` or `classThumbnail`: (select new thumbnail image)
+  - `lecturePhoto` or `classLecturePic`: (select new lecture photo)
+  - `video` or `classVideo`: (select new video file)
 
 **Note:** The `isFree` flag is automatically determined by the system based on the class's position in the course. The first two classes are automatically marked as free, and subsequent classes are marked as paid. The `isFree` field is calculated dynamically and not stored in the database. Any value provided for `isFree` in the request body will be ignored.
 
@@ -746,47 +613,7 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 }
 ```
 
-#### 3.3 Update Class Media
-**Endpoint:** `PUT /api/admin/courses/:id/classes/:classId/media`  
-**Headers:** 
-- `Authorization: Bearer <admin_jwt_token>`
-- `Content-Type: multipart/form-data`
-
-**Form Fields:**
-- Individual file uploads:
-  - `thumbnail`: (select new thumbnail image)
-  - `lecturePhoto`: (select new lecture photo)
-  - `video`: (select new video file)
-
-**Expected Response:**
-```json
-{
-  "success": true,
-  "message": "Class media updated successfully",
-  "data": {
-    "_id": "course_id",
-    "contentType": "ONLINE_COURSE",
-    "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "classes": [
-      {
-        "_id": "class_id_1",
-        "title": "Updated Introduction to Indian Polity",
-        "topic": "Polity Fundamentals",
-        "order": 1,
-        "thumbnailUrl": "https://res.cloudinary.com/.../updated_class1_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../updated_class1_lecture.jpg",
-        "videoUrl": "https://res.cloudinary.com/.../updated_class1_video.mp4",
-        "isFree": true
-      },
-      "...": "..."
-    ],
-    "...": "..."
-  }
-}
-```
-
-#### 3.4 Delete Class from Course
+#### 3.3 Delete Class from Course
 **Endpoint:** `DELETE /api/admin/courses/:id/classes/:classId`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
@@ -811,16 +638,6 @@ User endpoints for course access require a valid user JWT token. Additionally, t
         "lecturePhotoUrl": "https://res.cloudinary.com/.../class2_lecture.jpg",
         "videoUrl": "https://res.cloudinary.com/.../class2_video.mp4",
         "isFree": true
-      },
-      {
-        "_id": "class_id_3",
-        "title": "Parliament and State Legislatures",
-        "topic": "Polity",
-        "order": 3,
-        "thumbnailUrl": "https://res.cloudinary.com/.../class3_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../class3_lecture.jpg",
-        "videoUrl": "https://res.cloudinary.com/.../class3_video.mp4",
-        "isFree": false
       }
     ],
     "...": "..."
@@ -830,40 +647,58 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 
 ### 4. STUDY MATERIALS - Within a Course
 
-#### 4.1 Update Course Content (Add Study Materials)
+#### 4.1 Add Study Materials to Course
 **Endpoint:** `PUT /api/admin/courses/:id/content`  
 **Headers:** 
 - `Authorization: Bearer <admin_jwt_token>`
 - `Content-Type: multipart/form-data`
 
 **Form Fields:**
-- JSON array for study materials:
-  - `studyMaterials`: `[{"title": "Polity Notes", "description": "Comprehensive notes on Indian Polity"}, {"title": "History Notes", "description": "Detailed history notes"}]`
-- File uploads:
-  - `studyMaterialFiles[]`: (select study material files, matched by index with studyMaterials array)
+- `shortDescription`: "Brief course overview"
+- `detailedDescription`: "Complete course description with syllabus..."
+- `pricingNote`: "Special offer for early birds"
+- `studyMaterials`: JSON array of study material objects
+- `studyMaterialFiles[]`: (select study material files - matched by index)
+
+**Request Body (studyMaterials field):**
+```json
+[
+  {
+    "title": "Polity Study Material.pdf",
+    "description": "Complete study material for polity"
+  },
+  {
+    "title": "Geography Notes.docx",
+    "description": "Handwritten notes for geography"
+  }
+]
+```
 
 **Expected Response:**
 ```json
 {
   "success": true,
-  "message": "Course content updated successfully",
+  "message": "Course content updated",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
+    "name": "Complete UPSC Prelims Course",
+    "shortDescription": "Brief course overview",
+    "detailedDescription": "Complete course description with syllabus...",
+    "pricingNote": "Special offer for early birds",
     "studyMaterials": [
       {
         "_id": "material_id_1",
-        "title": "Polity Notes",
-        "description": "Comprehensive notes on Indian Polity",
-        "fileUrl": "https://res.cloudinary.com/.../polity_notes.pdf"
+        "title": "Polity Study Material.pdf",
+        "description": "Complete study material for polity",
+        "fileUrl": "https://res.cloudinary.com/.../polity.pdf"
       },
       {
         "_id": "material_id_2",
-        "title": "History Notes",
-        "description": "Detailed history notes",
-        "fileUrl": "https://res.cloudinary.com/.../history_notes.pdf"
+        "title": "Geography Notes.docx",
+        "description": "Handwritten notes for geography",
+        "fileUrl": "https://res.cloudinary.com/.../geography.docx"
       }
     ],
     "...": "..."
@@ -880,20 +715,13 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 ```json
 {
   "success": true,
-  "message": "Study material removed from course successfully",
+  "message": "Study material deleted",
   "data": {
     "_id": "course_id",
     "contentType": "ONLINE_COURSE",
     "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "studyMaterials": [
-      {
-        "_id": "material_id_2",
-        "title": "History Notes",
-        "description": "Detailed history notes",
-        "fileUrl": "https://res.cloudinary.com/.../history_notes.pdf"
-      }
-    ],
+    "name": "Complete UPSC Prelims Course",
+    "studyMaterials": [],
     "...": "..."
   }
 }
@@ -901,133 +729,159 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 
 ---
 
-## USER APIs (PUBLIC)
+## USER APIs
 
-### 1. List Public Courses
-**Endpoint:** `GET /api/user/courses`  
+### 1. COURSE FILTERS
 
-**Query Parameters (optional):**
+#### 1.1 Get Active Course Categories
+**Endpoint:** `GET /api/v1/courses/filters/categories`  
+**Headers:** 
+- `Authorization: Bearer <user_jwt_token>` (optional)
+
+**Query Parameters:**
 - `contentType`: Filter by content type (default: ONLINE_COURSE)
-- `category`: Filter by category ID
-- `subCategory`: Filter by sub-category ID
-- `language`: Filter by language ID
-- `lang`: Filter by language code or name
-- `isActive`: Filter by active status (true/false, default: true)
-- `minPrice`: Minimum price filter
-- `maxPrice`: Maximum price filter
+
+**Backend Logic:**
+* Fetch **only ACTIVE courses**
+* Extract **unique categories** from those courses
 
 **Expected Response:**
 ```json
 {
+  "success": true,
+  "data": [
+    { "_id": "cat_upsc", "name": "UPSC" },
+    { "_id": "cat_appsc", "name": "APPSC" }
+  ]
+}
+```
+
+**Important:**
+* Do **NOT** show categories with zero courses
+* This matches your UI screenshots perfectly
+
+#### 1.2 Get Subcategories for Category and Language
+**Endpoint:** `GET /api/v1/courses/filters/subcategories`  
+**Headers:** 
+- `Authorization: Bearer <user_jwt_token>` (optional)
+
+**Query Parameters:**
+- `category`: Category ID (required)
+- `language`: Language ID (optional)
+- `lang`: Language code or name (optional, alternative to language ID)
+
+**Backend Logic:**
+* Filter by:
+  * category
+  * language (if provided)
+  * isActive = true
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "data": [
+    { "_id": "sub_ias", "name": "IAS" },
+    { "_id": "sub_ifs", "name": "IFS" }
+  ]
+}
+```
+
+**Important:**
+* Subcategories shown **only if courses exist for the given category and language**
+* No empty UI states
+
+### 2. COURSE LISTING AND DETAILS
+
+#### 2.1 List Courses with Filters
+**Endpoint:** `GET /api/v1/courses`  
+**Headers:** 
+- `Authorization: Bearer <user_jwt_token>` (optional)
+
+**Query Parameters:**
+- `contentType`: Filter by content type (default: ONLINE_COURSE)
+- `category`: Filter by category ID
+- `subCategory`: Filter by sub-category ID
+- `language`: Filter by language ID
+- `lang`: Language code or name (alternative to language ID)
+
+**Backend Logic:**
+* Filter by all provided parameters
+* Only show active courses
+* Calculate final price
+* Add purchase status
+
+**Expected Response:**
+```json
+{
+  "success": true,
   "data": [
     {
       "_id": "course_id",
-      "contentType": "ONLINE_COURSE",
-      "accessType": "PAID",
-      "name": "Updated UPSC Prelims Course",
-      "courseType": "PRELIMS_ADVANCED",
-      "startDate": "2025-02-01T00:00:00Z",
-      "categories": [],
-      "subCategories": [],
-      "languages": [],
-      "validities": [],
-      "thumbnailUrl": "https://res.cloudinary.com/.../new_thumbnail.jpg",
-      "originalPrice": 5999,
-      "discountPrice": 1299,
-      "pricingNote": "Early bird offer",
-      "shortDescription": "Updated short description",
-      "detailedDescription": "Updated detailed description with complete syllabus...",
-      "tutors": [
+      "name": "GS Foundation",
+      "originalPrice": 10000,
+      "finalPrice": 9000,
+      "languages": ["telugu"],
+      "thumbnailUrl": "...",
+      "hasPurchased": false,
+      "categories": [
         {
-          "_id": "tutor_id_2",
-          "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-          "name": "Prof. Sunita Patel",
-          "qualification": "M.A. History",
-          "subject": "History"
+          "_id": "category_id",
+          "name": "UPSC",
+          "slug": "upsc"
         }
       ],
-      "classes": [
+      "subCategories": [
         {
-          "_id": "class_id_2",
-          "title": "Indian Constitution",
-          "topic": "Polity",
-          "order": 2,
-          "thumbnailUrl": "https://res.cloudinary.com/.../class2_thumb.jpg",
-          "lecturePhotoUrl": "https://res.cloudinary.com/.../class2_lecture.jpg",
-          "isFree": true,
-          "isLocked": false,
-          "hasAccess": true
-        },
-        {
-          "_id": "class_id_3",
-          "title": "Parliament and State Legislatures",
-          "topic": "Polity",
-          "order": 3,
-          "thumbnailUrl": "https://res.cloudinary.com/.../class3_thumb.jpg",
-          "lecturePhotoUrl": "https://res.cloudinary.com/.../class3_lecture.jpg",
-          "isFree": false,
-          "isLocked": true,
-          "hasAccess": false
+          "_id": "subcategory_id",
+          "name": "Prelims",
+          "slug": "prelims"
         }
-      ],
-      "studyMaterials": [
-        {
-          "_id": "material_id_2",
-          "title": "History Notes",
-          "description": "Detailed history notes",
-          "fileUrl": "https://res.cloudinary.com/.../history_notes.pdf"
-        }
-      ],
-      "isActive": true,
-      "createdAt": "timestamp",
-      "updatedAt": "timestamp",
-      "finalPrice": 4700,
-      "hasPurchased": false
+      ]
     }
   ]
 }
 ```
 
-### 2. Get Single Public Course
-**Endpoint:** `GET /api/user/courses/:id`  
+#### 2.2 Get Single Course Details
+**Endpoint:** `GET /api/v1/courses/:courseId`  
+**Headers:** 
+- `Authorization: Bearer <user_jwt_token>` (optional)
+
+**Backend Logic:**
+* Show course details
+* Process classes with access logic:
+  - First 2 classes: Free (isFree=true, isLocked=false, hasAccess=true)
+  - Purchased classes: Unlocked (isFree=false, isLocked=false, hasAccess=true)
+  - Other classes: Locked (isFree=false, isLocked=true, hasAccess=false)
 
 **Expected Response:**
 ```json
 {
+  "success": true,
   "data": {
     "_id": "course_id",
-    "contentType": "ONLINE_COURSE",
-    "accessType": "PAID",
-    "name": "Updated UPSC Prelims Course",
-    "courseType": "PRELIMS_ADVANCED",
-    "startDate": "2025-02-01T00:00:00Z",
-    "categories": [],
-    "subCategories": [],
-    "languages": [],
-    "validities": [],
-    "thumbnailUrl": "https://res.cloudinary.com/.../new_thumbnail.jpg",
-    "originalPrice": 5999,
-    "discountPrice": 1299,
-    "pricingNote": "Early bird offer",
-    "shortDescription": "Updated short description",
-    "detailedDescription": "Updated detailed description with complete syllabus...",
-    "tutors": [
-      {
-        "_id": "tutor_id_2",
-        "photoUrl": "https://res.cloudinary.com/.../tutor2.jpg",
-        "name": "Prof. Sunita Patel",
-        "qualification": "M.A. History",
-        "subject": "History"
-      }
-    ],
+    "name": "Complete UPSC Prelims Course",
+    "originalPrice": 4999,
+    "finalPrice": 4000,
+    "hasPurchased": false,
     "classes": [
+      {
+        "_id": "class_id_1",
+        "title": "Introduction to Indian Polity",
+        "topic": "Polity",
+        "order": 1,
+        "thumbnailUrl": "https://res.cloudinary.com/.../class1_thumb.jpg",
+        "isFree": true,
+        "isLocked": false,
+        "hasAccess": true
+      },
       {
         "_id": "class_id_2",
         "title": "Indian Constitution",
         "topic": "Polity",
         "order": 2,
         "thumbnailUrl": "https://res.cloudinary.com/.../class2_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../class2_lecture.jpg",
         "isFree": true,
         "isLocked": false,
         "hasAccess": true
@@ -1038,52 +892,45 @@ User endpoints for course access require a valid user JWT token. Additionally, t
         "topic": "Polity",
         "order": 3,
         "thumbnailUrl": "https://res.cloudinary.com/.../class3_thumb.jpg",
-        "lecturePhotoUrl": "https://res.cloudinary.com/.../class3_lecture.jpg",
         "isFree": false,
         "isLocked": true,
         "hasAccess": false
       }
     ],
-    "studyMaterials": [
-      {
-        "_id": "material_id_2",
-        "title": "History Notes",
-        "description": "Detailed history notes",
-        "fileUrl": "https://res.cloudinary.com/.../history_notes.pdf"
-      }
-    ],
-    "isActive": true,
-    "createdAt": "timestamp",
-    "updatedAt": "timestamp",
-    "finalPrice": 4700,
-    "hasPurchased": false
+    "...": "..."
   }
 }
 ```
 
-### 3. Get Specific Course Class/Video
-**Endpoint:** `GET /api/user/courses/:courseId/classes/:classId`  
+#### 2.3 Get Specific Class Details
+**Endpoint:** `GET /api/v1/courses/:courseId/classes/:classId`  
 **Headers:** 
-- `Authorization: Bearer <user_jwt_token>`
+- `Authorization: Bearer <user_jwt_token>` (required)
 
-**Expected Response (for free class):**
+**Access Rules:**
+| Condition | Result    |
+| --------- | --------- |
+| Class ≤ 2 | Allowed   |
+| Purchased | Allowed   |
+| Else      | ❌ Blocked |
+
+**Expected Response (Success):**
 ```json
 {
   "success": true,
   "data": {
-    "_id": "class_id_2",
-    "title": "Indian Constitution",
+    "_id": "class_id",
+    "title": "Introduction to Indian Polity",
     "topic": "Polity",
-    "order": 2,
-    "thumbnailUrl": "https://res.cloudinary.com/.../class2_thumb.jpg",
-    "lecturePhotoUrl": "https://res.cloudinary.com/.../class2_lecture.jpg",
-    "videoUrl": "https://res.cloudinary.com/.../class2_video.mp4",
-    "isFree": true
+    "order": 1,
+    "thumbnailUrl": "https://res.cloudinary.com/.../class1_thumb.jpg",
+    "lecturePhotoUrl": "https://res.cloudinary.com/.../class1_lecture.jpg",
+    "videoUrl": "https://res.cloudinary.com/.../class1_video.mp4"
   }
 }
 ```
 
-**Expected Response (for paid class without purchase):**
+**Expected Response (Blocked):**
 ```json
 {
   "success": false,
@@ -1091,263 +938,89 @@ User endpoints for course access require a valid user JWT token. Additionally, t
 }
 ```
 
-### 4. Initiate Course Purchase
-**Endpoint:** `POST /api/user/courses/:courseId/purchase`  
+### 3. PURCHASE FLOW
+
+#### 3.1 Initiate Course Purchase
+**Endpoint:** `POST /api/payment/order/create`  
 **Headers:** 
-- `Authorization: Bearer <user_jwt_token>`
+- `Authorization: Bearer <user_jwt_token>` (required)
 - `Content-Type: application/json`
 
 **Request Body:**
 ```json
 {
-  "couponCode": "SAVE10"  // Optional
+  "courseId": "course_id",
+  "couponCode": "EARLYBIRD20" (optional)
 }
 ```
+
+**Backend Logic:**
+* Verify course exists and is active
+* Check if already purchased
+* Calculate final amount with discounts
+* Create payment record
+* Return payment details
 
 **Expected Response:**
 ```json
 {
   "success": true,
   "data": {
-    "paymentId": "pay_1234567890_abcdefghi",
-    "amount": 4700,
+    "paymentId": "pay_1700000000000_randomstring",
+    "amount": 4000,
     "currency": "INR",
-    "couponApplied": false,
-    "discountAmount": 0
+    "couponApplied": true,
+    "discountAmount": 999
   }
 }
 ```
 
----
+#### 3.2 After Payment Success
+**Backend Logic:**
+* Save purchase record
+* `hasPurchased = true`
 
-## FREE vs PAID Class Access Logic
-
-### Core Design Principle
-
-The Brain Buzz platform implements a sophisticated access control system for online courses that differentiates between FREE and PAID content. This system is designed with the following principles:
-
-1. **Dynamic Access Determination**: FREE/PAID status is calculated at runtime, not stored in the database
-2. **Position-Based Access**: The first 2 classes in any course are automatically FREE
-3. **Flexible Rules**: Business rules can be easily modified without database changes
-4. **Clear Separation**: Different access rules for Admins vs Users
-
-### Implementation Details
-
-#### How FREE/Paid Access Works
-
-1. **No Persistent Storage**: The `isFree` field is NEVER stored in the database
-2. **Runtime Calculation**: Access type is determined dynamically based on class position
-3. **Automatic Assignment**: First 2 classes = FREE, Remaining classes = PAID
-4. **Admin Override**: Admins bypass all access restrictions
-
-#### User Access Scenarios
-
-**Scenario 1: Non-Purchased User**
-- Can access first 2 classes in any course (FREE)
-- Cannot access classes 3+ without purchasing the course
-- Sees "Buy to unlock" messaging for paid classes
-
-**Scenario 2: Purchased User**
-- Can access ALL classes in the purchased course
-- No restrictions based on class position
-- Full access to all course features
-
-**Scenario 3: Admin User**
-- Can access ALL classes in ALL courses
-- No purchase requirements
-- No position-based restrictions
-- Full administrative capabilities
-
-### Benefits of This Approach
-
-#### 1. Database Efficiency
-- No redundant `isFree` fields cluttering the database
-- Cleaner data model with fewer maintenance concerns
-- Reduced storage overhead
-
-#### 2. Business Flexibility
-- Can easily change "first 2 free" to "first 3 free" with one code change
-- No database migrations required for rule changes
-- A/B testing different free tier strategies
-
-#### 3. Security & Consistency
-- Eliminates possibility of inconsistent `isFree` flags
-- Centralized logic reduces bugs
-- Admins always have full access regardless of flags
-
-#### 4. Payment Integration
-- Seamless integration with Razorpay and other payment systems
-- Clear distinction between free and paid content for billing
-- Automatic access granting upon successful purchase
-
-### Technical Implementation
-
-#### Backend Logic
-
-The FREE/PAID determination happens in the controller layer:
-
-```javascript
-// For user-facing endpoints
-const classesWithAccessInfo = course.classes.map((cls, index) => ({
-  ...cls.toObject(),
-  isFree: index < 2,
-  isLocked: !(index < 2 || userHasPurchased),
-  hasAccess: index < 2 || userHasPurchased
-}));
-```
-
-#### Access Control Middleware
-
-Purchase check middleware enforces access rules:
-
-```javascript
-// Simplified logic
-if (userHasPurchased(courseId)) {
-  allowAccess();
-} else if (classIndex < 2) {
-  allowAccess();
-} else {
-  blockAccess();
-}
-```
-
-### Testing Guidelines
-
-#### Admin Testing
-1. Verify admins can access ALL classes regardless of position
-2. Confirm no purchase requirements for admin users
-3. Test CRUD operations on classes 1-N without restrictions
-
-#### User Testing (Non-Purchased)
-1. Verify free access to classes 1-2 in any course
-2. Confirm blocked access to classes 3+ without purchase
-3. Check proper error messaging for restricted classes
-4. Validate "Buy to unlock" UI elements
-
-#### User Testing (Purchased)
-1. Verify full access to ALL classes after purchase
-2. Confirm no position-based restrictions post-purchase
-3. Test all class features work correctly
-4. Validate access persists across sessions
-
-#### Edge Cases
-1. Course with only 1 class (should be FREE)
-2. Course with only 2 classes (both should be FREE)
-3. Adding/removing classes affecting position-based access
-4. Changing class order and impact on FREE/PAID status
-5. Bulk operations maintaining correct access logic
+**Result:**
+* All classes unlocked for the user
+* User can access all course content
 
 ---
 
-## Validation Rules
+## ACCESS CONTROL SUMMARY
 
-### Course Creation/Update
-* ✅ name is required
-* ✅ originalPrice is required and cannot be negative
-* ✅ categoryIds, subCategoryIds, languageIds, validityIds must be valid ObjectId arrays
-* ✅ startDate must be a valid ISO date string if provided
-* ✅ isActive defaults to true when not provided
-* ✅ accessType must be "FREE" or "PAID"
+### User View
+| Feature | Logic |
+|--------|-------|
+| **Categories** | Only categories with active courses |
+| **Subcategories** | Only subcategories with active courses in selected category/language |
+| **Courses** | Only active courses matching filters |
+| **Classes** | First 2 free, rest locked until purchase |
+| **Study Materials** | Locked until purchase |
 
-### Tutor Creation/Update
-* ✅ name is required
-* ✅ subject is required
-* ✅ qualification is optional
-
-### Class Creation/Update
-* ✅ title is required
-* ✅ topic is optional
-* ✅ order is optional but should be consistent
-* ✅ isFree flag is automatically set based on class position (first 2 classes are free)
-* ✅ Cannot add more classes than specified limit (if any)
-
-### Study Material Creation/Update
-* ✅ title is required
-* ✅ description is optional
-* ✅ fileUrl is generated automatically after upload
-
-### User Access
-* ✅ Users must purchase course before accessing paid classes (except first 2 free classes)
-* ✅ Access control logic: First 2 classes → Free, Classes 3+ → Require purchase
-* ✅ Admins can access all classes without purchase requirements
-* ✅ Dynamic access determination at runtime (not stored in DB)
+### Admin View
+| Feature | Logic |
+|--------|-------|
+| **Categories** | All categories |
+| **Subcategories** | All subcategories |
+| **Courses** | All courses (draft, inactive, active) |
+| **Classes** | All classes accessible |
+| **Study Materials** | All study materials accessible |
 
 ---
 
-## Testing Steps Summary
+## DESIGN PRINCIPLES
 
-1. **Setup Phase:**
-   - Create categories, sub-categories, languages, and validity options if needed
-   - Create a course shell with basic information
-   - Verify course is stored correctly
+### 1. Dynamic Access Control
+- No `isFree` field in database
+- First 2 classes free calculated at runtime
+- Easy to change business rules later
 
-2. **Adding Content:**
-   - Add tutors to the course
-   - Add classes to the course
-   - Verify the first 2 classes are marked as free automatically
-   - Add study materials to the course
+### 2. Consistent APIs
+- Same endpoints for user and admin
+- Different response data based on role
+- Minimal code duplication
 
-3. **Updating Content:**
-   - Update course basic information
-   - Update course descriptions
-   - Update tutor information
-   - Update class information
-   - Update study materials
-
-4. **Deleting Content:**
-   - Delete study materials from course
-   - Delete classes from course
-   - Delete tutors from course
-   - Delete entire course
-
-5. **Publishing:**
-   - Publish course to make it available to users
-   - Verify course appears in public listings
-
-6. **User Access Testing:**
-   - Test public endpoints for listing and retrieving courses
-   - Verify proper data is exposed to users
-   - Confirm authentication is required for user course endpoints
-   - **FREE/Paid Access Testing:**
-     * Verify first 2 classes in any course are accessible without purchase
-     * Confirm classes 3+ require purchase for access
-     * Test admin override (admins can access all classes)
-     * Validate dynamic access determination (no `isFree` field in database)
-     * Check proper error messaging for restricted classes
-     * Verify "Buy to unlock" UI elements display correctly
-     * Test access persistence for purchased users
-
-7. **Purchase Flow Testing:**
-   - Test course purchase initiation
-   - Verify payment information is generated correctly
-   - Test access to paid content after purchase
-   - Validate purchase history
-
-8. **Filtering Testing:**
-   - Test category-based filtering:
-     * Request: `GET /api/admin/courses?category=<category_id>`
-     * Expected: Only courses belonging to the specified category are returned
-   - Test sub-category filtering:
-     * Request: `GET /api/admin/courses?subCategory=<sub_category_id>`
-     * Expected: Only courses belonging to the specified sub-category are returned
-   - Test language filtering:
-     * Request: `GET /api/admin/courses?language=<language_id>`
-     * Expected: Only courses in the specified language are returned
-   - Test active status filtering:
-     * Request: `GET /api/admin/courses?isActive=true`
-     * Expected: Only active courses are returned
-     * Request: `GET /api/admin/courses?isActive=false`
-     * Expected: Only inactive courses are returned
-   - Test price range filtering:
-     * Request: `GET /api/admin/courses?minPrice=1000&maxPrice=5000`
-     * Expected: Only courses with originalPrice between 1000 and 5000 are returned
-     * Request: `GET /api/admin/courses?minPrice=3000`
-     * Expected: Only courses with originalPrice >= 3000 are returned
-   - Test combined filtering:
-     * Request: `GET /api/admin/courses?category=<category_id>&isActive=true&minPrice=1000`
-     * Expected: Only active courses belonging to the specified category with originalPrice >= 1000 are returned
-   - Test user-side filtering:
-     * Request: `GET /api/user/courses?category=<category_id>`
-     * Expected: Only active courses belonging to the specified category are returned to users
-
-Ensure all endpoints return appropriate error messages for invalid requests.
+### 3. Scalable Architecture
+- Filter-driven UI
+- Extensible course structure
+- Clean separation of concerns

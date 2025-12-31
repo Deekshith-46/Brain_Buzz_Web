@@ -101,6 +101,38 @@ app.use('/api/admin/subjects', adminSubjectRoutes);
 app.use('/api/admin/previous-question-papers', adminPYQRoutes);
 app.use('/api/v1/previous-question-papers', userPYQRoutes);
 
+// Course Filter Routes
+const courseFilterRoutes = require('./routes/User/courseFilterRoutes');
+app.use('/api/v1/courses/filters', courseFilterRoutes);
+
+// Other Content Filter Routes
+const filterRoutes = require('./routes/User/filterRoutes');
+app.use('/api/v1/filters', filterRoutes);
+
+// Admin Course Filter Routes
+const adminCourseFilterRoutes = require('./routes/Admin/courseFilterRoutes');
+app.use('/api/admin/courses/filters', adminCourseFilterRoutes);
+
+// Admin Publication Filter Routes
+const adminPublicationFilterRoutes = require('./routes/Admin/publicationFilterRoutes');
+app.use('/api/admin/publications/filters', adminPublicationFilterRoutes);
+
+// Admin EBook Filter Routes
+const adminEBookFilterRoutes = require('./routes/Admin/eBookFilterRoutes');
+app.use('/api/admin/ebooks/filters', adminEBookFilterRoutes);
+
+// Admin Daily Quiz Filter Routes
+const adminDailyQuizFilterRoutes = require('./routes/Admin/dailyQuizFilterRoutes');
+app.use('/api/admin/daily-quizzes/filters', adminDailyQuizFilterRoutes);
+
+// Admin PYQ Filter Routes
+const adminPYQFilterRoutes = require('./routes/Admin/pyqFilterRoutes');
+app.use('/api/admin/previous-question-papers/filters', adminPYQFilterRoutes);
+
+// Admin Test Series Filter Routes
+const adminTestSeriesFilterRoutes = require('./routes/Admin/testSeriesFilterRoutes');
+app.use('/api/admin/test-series/filters', adminTestSeriesFilterRoutes);
+
 // Banner Routes
 const adminBannerRoutes = require('./routes/Admin/bannerRoutes');
 const userBannerRoutes = require('./routes/User/bannerRoutes');

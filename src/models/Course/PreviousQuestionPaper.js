@@ -7,17 +7,17 @@ const previousQuestionPaperSchema = new mongoose.Schema(
       default: 'PYQ_EBOOK'
     },
 
-    categoryId: {
+    categoryId: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
       required: true
-    },
+    }],
 
-    subCategoryId: {
+    subCategoryId: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SubCategory',
       required: true
-    },
+    }],
 
     paperCategory: {
       type: String,
@@ -50,11 +50,15 @@ const previousQuestionPaperSchema = new mongoose.Schema(
       type: String,
       required: true
     },
-
+    
     isActive: {
       type: Boolean,
       default: true
-    }
+    },
+    languages: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Language',
+    }]
   },
   { timestamps: true }
 );

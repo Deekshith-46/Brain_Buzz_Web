@@ -9,14 +9,11 @@ const { PurchaseService } = require('../../../services');
 const checkTestSeriesAccess = async (userId, seriesId) => {
   if (!userId) return false;
   
-  const purchase = await TestSeriesPurchase.findOne({
-    user: userId,
-    testSeries: seriesId,
-    status: 'completed',
-    expiryDate: { $gt: new Date() }
-  });
-
-  return !!purchase;
+  // Use the unified TestSeriesAccessService
+  const { TestSeriesAccessService } = require('../../../services');
+  const accessInfo = await TestSeriesAccessService.getAccessInfo(userId, seriesId);
+  
+  return accessInfo.hasAccess && accessInfo.isValid;
 };
 
 // Helper to determine test state based on timing
@@ -60,6 +57,7 @@ exports.listPublicTestSeries = async (req, res) => {
   try {
     const { category, subCategory } = req.query;
     const userId = req.user?._id;
+    const userRole = req.user?.role;
 
     // Filter: include documents where isActive is true OR isActive doesn't exist (for backward compatibility)
     // Also filter by contentType to ensure proper isolation
@@ -101,7 +99,7 @@ exports.listPublicTestSeries = async (req, res) => {
 
     // For each series, check if user has access
     const seriesWithAccess = await Promise.all(seriesList.map(async (series) => {
-      const hasAccess = userId ? await checkTestSeriesAccess(userId, series._id) : false;
+      const hasAccess = userRole === 'ADMIN' ? true : (userId ? await checkTestSeriesAccess(userId, series._id) : false);
       
       return {
         _id: series._id,
@@ -143,6 +141,7 @@ exports.getPublicTestSeriesById = async (req, res) => {
   try {
     const { seriesId } = req.params;
     const userId = req.user?._id;
+    const userRole = req.user?.role;
 
     const series = await TestSeries.findOne({ _id: seriesId, contentType: 'TEST_SERIES', isActive: true })
       .populate('categories', 'name slug')
@@ -157,23 +156,28 @@ exports.getPublicTestSeriesById = async (req, res) => {
       });
     }
 
-    const hasAccess = userId ? await checkTestSeriesAccess(userId, seriesId) : false;
+    const hasAccess = userRole === 'ADMIN' ? true : (userId ? await checkTestSeriesAccess(userId, seriesId) : false);
 
-    // Prepare test list without sensitive data
-    const tests = series.tests.map((test, index) => ({
-      _id: test._id,
-      testName: test.testName,
-      noOfQuestions: test.questions?.length || 0,
-      totalMarks: test.totalMarks,
-      positiveMarks: test.positiveMarks,
-      negativeMarks: test.negativeMarks,
-      date: test.date,
-      startTime: test.startTime,
-      endTime: test.endTime,
-      // First two tests are free
-      isFree: index < 2,
-      hasAccess // Include access status for each test
-    }));
+    // Prepare test list with access control
+    const tests = series.tests.map((test, index) => {
+      const isFree = index < 2;
+      const testHasAccess = userRole === 'ADMIN' || hasAccess || isFree;
+      
+      return {
+        _id: test._id,
+        testName: test.testName,
+        noOfQuestions: test.questions?.length || 0,
+        totalMarks: test.totalMarks,
+        positiveMarks: test.positiveMarks,
+        negativeMarks: test.negativeMarks,
+        date: test.date,
+        startTime: test.startTime,
+        endTime: test.endTime,
+        // First two tests are free
+        isFree,
+        hasAccess: testHasAccess
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -207,6 +211,7 @@ exports.getPublicTestInSeries = async (req, res) => {
   try {
     const { seriesId, testId } = req.params;
     const userId = req.user?._id;
+    const userRole = req.user?.role;
     let hasAccess = false;
 
     // First, check if the test series exists
@@ -234,12 +239,11 @@ exports.getPublicTestInSeries = async (req, res) => {
     }
 
     // Check if user has access to this test series
-    if (userId) {
-      // Check if user has purchased the test series
-      const user = await User.findById(userId).select('purchasedTestSeries');
-      hasAccess = user.purchasedTestSeries.some(
-        id => id.toString() === testSeries._id.toString()
-      );
+    if (userRole === 'ADMIN') {
+      hasAccess = true; // Admin has full access
+    } else if (userId) {
+      // Check if user has purchased the test series with valid expiry
+      hasAccess = await checkTestSeriesAccess(userId, seriesId);
     }
 
     // Determine test state
@@ -259,8 +263,8 @@ exports.getPublicTestInSeries = async (req, res) => {
       startTime: test.startTime,
       endTime: test.endTime,
       resultPublishTime: test.resultPublishTime,
-      // First two tests are free
-      isFree: testIndex < 2,
+      // First two tests are free for non-admin users
+      isFree: testIndex < 2 && userRole !== 'ADMIN',
       testState, // Add test state
       hasAccess
     };
@@ -279,7 +283,7 @@ exports.getPublicTestInSeries = async (req, res) => {
           order: section.order,
           noOfQuestions: sectionQuestions,
           marks: section.questions?.reduce((sum, q) => sum + (q.marks || 0), 0) || 0,
-           questions: section.questions?.map(q => ({
+          questions: section.questions?.map(q => ({
             _id: q._id,
             questionNumber: q.questionNumber,
             questionText: q.questionText,
@@ -401,15 +405,17 @@ exports.initiatePurchase = async (req, res) => {
     const userId = req.user._id;
 
     // Check if already purchased
-    const hasAccess = await PurchaseService.hasAccess(userId, 'test_series', seriesId);
-    if (hasAccess) {
+    const { TestSeriesAccessService } = require('../../../services');
+    const accessInfo = await TestSeriesAccessService.getAccessInfo(userId, seriesId);
+    if (accessInfo.hasAccess && accessInfo.isValid) {
       return res.status(400).json({
         success: false,
         message: 'You have already purchased this test series'
       });
     }
 
-    // Create purchase record
+    // Create purchase record using the unified PurchaseService
+    const { PurchaseService } = require('../../../services');
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const purchase = await PurchaseService.createPurchase(
       userId,

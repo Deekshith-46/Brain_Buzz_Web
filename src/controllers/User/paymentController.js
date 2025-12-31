@@ -488,16 +488,67 @@ exports.verifyPayment = async (req, res) => {
     });
 
     // Grant access per item
-    const expiryDate = new Date();
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-
+    // Calculate expiry date based on validity duration from the course/test series
     for (const it of items) {
+      // Fetch the validity duration from the course or test series
+      let validityDurationInDays = 365; // Default to 1 year if no validity found
+      
       if (it.itemType === 'test_series') {
-        await User.findByIdAndUpdate(
-          userId,
-          { $addToSet: { purchasedTestSeries: it.itemId } }
+        const testSeries = await TestSeries.findById(it.itemId);
+        if (testSeries && testSeries.validity && testSeries.validity.length > 0) {
+          // Assuming validity is an array and we take the first one
+          const validityOption = testSeries.validity[0];
+          if (validityOption && validityOption.durationInDays) {
+            validityDurationInDays = validityOption.durationInDays;
+          }
+        }
+        
+        // Debug logging
+        console.log(`Test Series Purchase - Item ID: ${it.itemId}, Validity Days: ${validityDurationInDays}`);
+        
+        await Purchase.updateOne(
+          {
+            user: userId,
+            'items.itemType': 'test_series',
+            'items.itemId': it.itemId,
+          },
+          {
+            $set: {
+              amount: finalAmount,
+              discountAmount,
+              finalAmount,
+              status: 'completed',
+              paymentId: razorpay_payment_id,
+              expiryDate: new Date(Date.now() + validityDurationInDays * 24 * 60 * 60 * 1000), // Use actual validity
+            },
+            $setOnInsert: {
+              user: userId,
+              items: [{ itemType: 'test_series', itemId: it.itemId }],
+              coupon: coupon
+                ? {
+                  code: coupon.code,
+                  discountType: coupon.discountType,
+                  discountValue: coupon.discountValue,
+                }
+                : null,
+              purchaseDate: new Date(),
+            },
+          },
+          { upsert: true }
         );
       } else if (it.itemType === 'online_course') {
+        const course = await Course.findById(it.itemId);
+        if (course && course.validities && course.validities.length > 0) {
+          // Assuming validities is an array and we take the first one
+          const validityOption = course.validities[0];
+          if (validityOption && validityOption.durationInDays) {
+            validityDurationInDays = validityOption.durationInDays;
+          }
+        }
+        
+        // Debug logging
+        console.log(`Course Purchase - Item ID: ${it.itemId}, Validity Days: ${validityDurationInDays}`);
+        
         await Purchase.updateOne(
           {
             user: userId,
@@ -511,7 +562,7 @@ exports.verifyPayment = async (req, res) => {
               finalAmount,
               status: 'completed',
               paymentId: razorpay_payment_id,
-              expiryDate,
+              expiryDate: new Date(Date.now() + validityDurationInDays * 24 * 60 * 60 * 1000), // Use actual validity
             },
             $setOnInsert: {
               user: userId,
@@ -601,8 +652,20 @@ exports.verifyCoursePayment = async (req, res) => {
     });
 
     // Grant access via Purchase record
-    const expiryDate = new Date();
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    // Calculate expiry date based on validity duration from the course
+    const course = await Course.findById(courseId);
+    let validityDurationInDays = 365; // Default to 1 year if no validity found
+    if (course && course.validities && course.validities.length > 0) {
+      // Assuming validities is an array and we take the first one
+      const validityOption = course.validities[0];
+      if (validityOption && validityOption.durationInDays) {
+        validityDurationInDays = validityOption.durationInDays;
+      }
+    }
+    
+    // Debug logging
+    console.log(`Course Purchase - Item ID: ${courseId}, Validity Days: ${validityDurationInDays}`);
+    
     await Purchase.updateOne(
       {
         user: userId,
@@ -616,7 +679,7 @@ exports.verifyCoursePayment = async (req, res) => {
           finalAmount: finalPrice,
           status: 'completed',
           paymentId: razorpay_payment_id,
-          expiryDate
+          expiryDate: new Date(Date.now() + validityDurationInDays * 24 * 60 * 60 * 1000), // Use actual validity
         },
         $setOnInsert: {
           user: userId,

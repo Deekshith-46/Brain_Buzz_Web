@@ -180,9 +180,43 @@ static async getApplicableCoupons(items, userId) {
     };
   }
 
-    // Set expiry date (1 year from now)
+    // Set expiry date based on validity from the purchased items
+    // First, we need to determine the validity period for the items being purchased
     const expiryDate = new Date();
-    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    
+    // Default to 1 year if no specific validity is found
+    let maxValidityInDays = 365;
+    
+    for (const item of items) {
+      let validityInDays = 365; // Default to 1 year
+      
+      if (item.itemType === 'online_course') {
+        const Course = mongoose.model('Course');
+        const course = await Course.findById(item.itemId);
+        if (course && course.validities && course.validities.length > 0) {
+          // Get the first validity option and use its duration
+          const validityOption = await mongoose.model('ValidityOption').findById(course.validities[0]);
+          if (validityOption && validityOption.durationInDays) {
+            validityInDays = validityOption.durationInDays;
+          }
+        }
+      } else if (item.itemType === 'test_series') {
+        const TestSeries = mongoose.model('TestSeries');
+        const testSeries = await TestSeries.findById(item.itemId);
+        if (testSeries && testSeries.validity) {
+          const validityOption = await mongoose.model('ValidityOption').findById(testSeries.validity);
+          if (validityOption && validityOption.durationInDays) {
+            validityInDays = validityOption.durationInDays;
+          }
+        }
+      }
+      
+      // Use the maximum validity period among all items
+      maxValidityInDays = Math.max(maxValidityInDays, validityInDays);
+    }
+    
+    // Set expiry date based on validity in days
+    expiryDate.setDate(expiryDate.getDate() + maxValidityInDays);
 
     // Create purchase record
     const purchase = new Purchase({
@@ -213,6 +247,47 @@ static async getApplicableCoupons(items, userId) {
 
     if (isPaymentValid) {
       purchase.status = 'completed';
+      
+      // Update expiry date based on validity from the purchased items
+      // This ensures the expiry is calculated based on the actual validity duration
+      const expiryDate = new Date();
+      
+      // Default to 1 year if no specific validity is found
+      let maxValidityInDays = 365;
+      
+      for (const item of purchase.items) {
+        let validityInDays = 365; // Default to 1 year
+        
+        if (item.itemType === 'online_course') {
+          const Course = mongoose.model('Course');
+          const course = await Course.findById(item.itemId);
+          if (course && course.validities && course.validities.length > 0) {
+            // Get the first validity option and use its duration
+            const validityOption = await mongoose.model('ValidityOption').findById(course.validities[0]);
+            if (validityOption && validityOption.durationInDays) {
+              validityInDays = validityOption.durationInDays;
+            }
+          }
+        } else if (item.itemType === 'test_series') {
+          const TestSeries = mongoose.model('TestSeries');
+          const testSeries = await TestSeries.findById(item.itemId);
+          if (testSeries && testSeries.validity) {
+            const validityOption = await mongoose.model('ValidityOption').findById(testSeries.validity);
+            if (validityOption && validityOption.durationInDays) {
+              validityInDays = validityOption.durationInDays;
+            }
+          }
+        }
+        
+        // Use the maximum validity period among all items
+        maxValidityInDays = Math.max(maxValidityInDays, validityInDays);
+      }
+      
+      // Set expiry date based on validity in days
+      const newExpiryDate = new Date();
+      newExpiryDate.setDate(newExpiryDate.getDate() + maxValidityInDays);
+      purchase.expiryDate = newExpiryDate;
+      
       await purchase.save();
 
       // Increment coupon usage count

@@ -2,6 +2,43 @@ const Course = require('../../models/Course/Course');
 const Language = require('../../models/Course/Language');
 const { PurchaseService } = require('../../../services');
 
+// Helper function to handle database errors
+const handleDatabaseError = (error) => {
+  console.error('Database error:', error);
+  
+  // Check for specific error types and return appropriate status codes
+  if (error.name === 'CastError') {
+    return {
+      statusCode: 400,
+      message: 'Invalid ID format',
+      error: error.message
+    };
+  }
+  
+  if (error.name === 'ValidationError') {
+    return {
+      statusCode: 400,
+      message: 'Validation error',
+      error: error.message
+    };
+  }
+  
+  if (error.code === 11000) {
+    return {
+      statusCode: 409,
+      message: 'Duplicate entry error',
+      error: error.message
+    };
+  }
+  
+  // Default error response
+  return {
+    statusCode: 500,
+    message: 'Internal server error',
+    error: error.message
+  };
+};
+
 // Helper function to check if user has purchased a course
 const checkCoursePurchase = async (userId, courseId) => {
   if (!userId) return false;
@@ -22,7 +59,7 @@ const calculateFinalPrice = (originalPrice, discountPrice) => {
 };
 
 // Helper function to process classes based on access
-const processClassesForUser = (classes, hasPurchased, isAdmin = false) => {
+const processClassesForUser = (classes, hasPurchasedAndValid, isAdmin = false) => {
   // Sort classes by order field if available, otherwise keep original order
   const sortedClasses = [...classes].sort((a, b) => {
     if (a.order !== undefined && b.order !== undefined) {
@@ -42,10 +79,11 @@ const processClassesForUser = (classes, hasPurchased, isAdmin = false) => {
     }));
   }
 
-  // Process classes: use isFree field, rest require purchase
-  return sortedClasses.map((cls) => {
-    const isFreeClass = cls.isFree || false; // Use the isFree field
-    const hasAccess = isFreeClass || hasPurchased;
+  // Process classes: use isFree field, rest require purchase and valid expiry
+  return sortedClasses.map((cls, index) => {
+    // First 2 classes are free for users
+    const isFreeClass = index < 2;
+    const hasAccess = isFreeClass || (hasPurchasedAndValid === true);
     const isLocked = !hasAccess;
 
     const classObj = cls.toObject ? cls.toObject() : cls;
@@ -55,6 +93,7 @@ const processClassesForUser = (classes, hasPurchased, isAdmin = false) => {
       const { videoUrl, ...rest } = classObj;
       return {
         ...rest,
+        isFree: isFreeClass,
         isLocked: true,
         hasAccess: false,
       };
@@ -62,6 +101,7 @@ const processClassesForUser = (classes, hasPurchased, isAdmin = false) => {
 
     return {
       ...classObj,
+      isFree: isFreeClass,
       isLocked: false,
       hasAccess: true,
     };
@@ -99,29 +139,44 @@ exports.listCourses = async (req, res) => {
     }
 
     const courses = await Course.find(filter)
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
+      .populate('categories', 'name slug description thumbnailUrl')
+      .populate('subCategories', 'name slug description thumbnailUrl')
       .populate('languages', 'name code')
       .populate('validities', 'label durationInDays');
 
-    // Process classes for each course
+    // Process courses to return only specified fields
     const processedCourses = await Promise.all(
       courses.map(async (course) => {
         const hasPurchased = await checkCoursePurchase(userId, course._id);
         const courseObj = course.toObject();
-        courseObj.classes = processClassesForUser(course.classes, hasPurchased, false);
-        // Calculate and add finalPrice
-        if (courseObj.originalPrice !== undefined) {
-          courseObj.finalPrice = calculateFinalPrice(courseObj.originalPrice, courseObj.discountPrice);
-        }
-        return courseObj;
+        
+        // Calculate finalPrice
+        const finalPrice = calculateFinalPrice(courseObj.originalPrice, courseObj.discountPrice);
+        
+        // Return only the requested fields
+        const filteredCourse = {
+          _id: courseObj._id,
+          name: courseObj.name,
+          thumbnailUrl: courseObj.thumbnailUrl,
+          originalPrice: courseObj.originalPrice,
+          discountPrice: courseObj.discountPrice,
+          finalPrice: finalPrice,
+          languages: courseObj.languages,
+          validities: courseObj.validities,
+          hasPurchased: hasPurchased
+        };
+        
+        return filteredCourse;
       })
     );
 
     return res.status(200).json({ data: processedCourses });
   } catch (error) {
-    console.error('Error listing courses:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
 
@@ -130,13 +185,14 @@ exports.getCourseById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?._id;
+    const userRole = req.user?.role;
 
     const course = await Course.findOne({
       _id: id,
       isActive: true,
     })
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
+      .populate('categories', 'name slug description thumbnailUrl')
+      .populate('subCategories', 'name slug description thumbnailUrl')
       .populate('languages', 'name code')
       .populate('validities', 'label durationInDays');
 
@@ -144,13 +200,34 @@ exports.getCourseById = async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    // Check if user has purchased the course
-    const hasPurchased = await checkCoursePurchase(userId, course._id);
+    // Check access based on role
+    let hasPurchased = false;
+    let isValid = false;
+    let accessInfo = { hasPurchased: false, isValid: false };
 
-    // Process classes based on access
+    // Admin has full access to all classes
+    if (userRole === 'ADMIN') {
+      // Admin bypass - no purchase needed
+    } else {
+      // Check user purchase access using helper function
+      const checkUserPurchaseAccess = require('../../helpers/checkUserPurchaseAccess');
+      accessInfo = await checkUserPurchaseAccess({ 
+        userId, 
+        itemType: 'online_course', 
+        itemId: id 
+      });
+      hasPurchased = accessInfo.hasPurchased;
+      isValid = accessInfo.isValid;
+    }
+
+    // Process classes based on access (admin has full access)
     const courseObj = course.toObject();
-    courseObj.classes = processClassesForUser(course.classes, hasPurchased, false);
-    courseObj.hasPurchased = hasPurchased;
+    const isAdmin = userRole === 'ADMIN';
+    courseObj.classes = processClassesForUser(course.classes, hasPurchased && isValid, isAdmin);
+    courseObj.hasPurchased = isAdmin ? true : hasPurchased;
+    courseObj.isPurchaseValid = isAdmin ? true : isValid;
+    courseObj.expiryDate = isAdmin ? null : accessInfo.expiryDate;
+    
     // Calculate and add finalPrice
     if (courseObj.originalPrice !== undefined) {
       courseObj.finalPrice = calculateFinalPrice(courseObj.originalPrice, courseObj.discountPrice);
@@ -158,8 +235,11 @@ exports.getCourseById = async (req, res) => {
 
     return res.status(200).json({ data: courseObj });
   } catch (error) {
-    console.error('Error fetching course:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
 
@@ -173,8 +253,8 @@ exports.getCourseClass = async (req, res) => {
       _id: courseId,
       isActive: true,
     })
-      .populate('categories', 'name slug')
-      .populate('subCategories', 'name slug')
+      .populate('categories', 'name slug description thumbnailUrl')
+      .populate('subCategories', 'name slug description thumbnailUrl')
       .populate('languages', 'name code')
       .populate('validities', 'label durationInDays');
 
@@ -190,7 +270,9 @@ exports.getCourseClass = async (req, res) => {
 
     // Check if user has purchased the course or if it's a free class
     const hasPurchased = await checkCoursePurchase(userId, course._id);
-    const isFreeClass = classObj.isFree || false;
+    // First 2 classes are free
+    const classIndex = course.classes.findIndex(c => c._id.toString() === classId);
+    const isFreeClass = classIndex < 2;
     const hasAccess = isFreeClass || hasPurchased;
 
     if (!hasAccess) {
@@ -205,8 +287,11 @@ exports.getCourseClass = async (req, res) => {
       data: classObj 
     });
   } catch (error) {
-    console.error('Error fetching course class:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
   }
 };
 
@@ -248,11 +333,113 @@ exports.initiateCoursePurchase = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error initiating course purchase:', error);
-    return res.status(500).json({
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
       success: false,
-      message: error.message || 'Failed to initiate purchase',
-      error: error.message,
+      message: errorResponse.message,
+      error: errorResponse.error
+    });
+  }
+};
+
+// Get distinct categories for active courses
+exports.getCourseCategories = async (req, res) => {
+  try {
+    const { contentType } = req.query;
+    
+    // Default to ONLINE_COURSE
+    const type = contentType || 'ONLINE_COURSE';
+    
+    // Find active courses and get distinct categories
+    const courses = await Course.find({ 
+      contentType: type, 
+      isActive: true 
+    }).populate('categories', 'name slug description thumbnailUrl');
+
+    // Extract unique categories
+    const categories = [];
+    const categoryIds = new Set();
+    
+    courses.forEach(course => {
+      if (course.categories) {
+        course.categories.forEach(cat => {
+          if (!categoryIds.has(cat._id.toString())) {
+            categoryIds.add(cat._id.toString());
+            categories.push({
+              _id: cat._id,
+              name: cat.name,
+              slug: cat.slug,
+              description: cat.description,
+              thumbnailUrl: cat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: categories });
+  } catch (error) {
+    console.error('Error fetching course categories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct subcategories for active courses based on category and language
+exports.getCourseSubCategories = async (req, res) => {
+  try {
+    const { category, language, lang } = req.query;
+    
+    const filter = {
+      contentType: 'ONLINE_COURSE',
+      isActive: true,
+      categories: category
+    };
+
+    // Handle language filter
+    if (language) {
+      filter.languages = language;
+    } else if (lang) {
+      const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const langDoc = await Language.findOne({
+        $or: [
+          { code: lang.toLowerCase() },
+          { name: { $regex: `^${escapeRegex(lang)}$`, $options: 'i' } },
+        ],
+      });
+      if (langDoc) {
+        filter.languages = langDoc._id;
+      }
+    }
+
+    const courses = await Course.find(filter).populate('subCategories', 'name slug description thumbnailUrl');
+
+    // Extract unique subcategories
+    const subCategories = [];
+    const subCategoryIds = new Set();
+    
+    courses.forEach(course => {
+      if (course.subCategories) {
+        course.subCategories.forEach(subCat => {
+          if (!subCategoryIds.has(subCat._id.toString())) {
+            subCategoryIds.add(subCat._id.toString());
+            subCategories.push({
+              _id: subCat._id,
+              name: subCat.name,
+              slug: subCat.slug,
+              description: subCat.description,
+              thumbnailUrl: subCat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: subCategories });
+  } catch (error) {
+    const errorResponse = handleDatabaseError(error);
+    return res.status(errorResponse.statusCode).json({
+      message: errorResponse.message,
+      error: errorResponse.error
     });
   }
 };

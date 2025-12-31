@@ -15,7 +15,7 @@ exports.listPYQ = async (req, res) => {
     });
 
     const papers = await PreviousQuestionPaper.find(filters)
-      .populate('examId subjectId categoryId subCategoryId');
+      .populate('examId subjectId categoryId subCategoryId languageId languages');
 
     res.json({ success: true, data: papers });
   } catch (error) {

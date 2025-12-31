@@ -1,5 +1,11 @@
 const TestSeries = require('../../models/TestSeries/TestSeries');
+const Category = require('../../models/Course/Category');
+const SubCategory = require('../../models/Course/SubCategory');
+const Language = require('../../models/Course/Language');
 const cloudinary = require('../../config/cloudinary');
+
+// Helper function to escape regex special characters
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|\[\]\\]/g, '\\$&');
 
 const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   return new Promise((resolve, reject) => {
@@ -1082,6 +1088,94 @@ exports.deleteQuestionFromSection = async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting Question from Section:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct categories for test series (admin - shows all test series regardless of active status)
+exports.getTestSeriesCategories = async (req, res) => {
+  try {
+    // Find test series (including inactive) and get distinct categories
+    const testSeries = await TestSeries.find({}).populate('categories', 'name slug description thumbnailUrl');
+
+    // Extract unique categories
+    const categories = [];
+    const categoryIds = new Set();
+    
+    testSeries.forEach(series => {
+      if (series.categories) {
+        series.categories.forEach(cat => {
+          if (!categoryIds.has(cat._id.toString())) {
+            categoryIds.add(cat._id.toString());
+            categories.push({
+              _id: cat._id,
+              name: cat.name,
+              slug: cat.slug,
+              description: cat.description,
+              thumbnailUrl: cat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: categories });
+  } catch (error) {
+    console.error('Error fetching test series categories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct subcategories for test series based on category and language (admin - shows all test series regardless of active status)
+exports.getTestSeriesSubCategories = async (req, res) => {
+  try {
+    const { category, language, lang } = req.query;
+    
+    const filter = {
+      categories: category
+    };
+
+    // Handle language filter
+    if (language) {
+      filter.languages = language;
+    } else if (lang) {
+      const langDoc = await Language.findOne({
+        $or: [
+          { code: lang.toLowerCase() },
+          { name: { $regex: `^${escapeRegex(lang)}$`, $options: 'i' } },
+        ],
+      });
+      if (langDoc) {
+        filter.languages = langDoc._id;
+      }
+    }
+
+    const testSeries = await TestSeries.find(filter).populate('subCategories', 'name slug description thumbnailUrl');
+
+    // Extract unique subcategories
+    const subCategories = [];
+    const subCategoryIds = new Set();
+    
+    testSeries.forEach(series => {
+      if (series.subCategories) {
+        series.subCategories.forEach(subCat => {
+          if (!subCategoryIds.has(subCat._id.toString())) {
+            subCategoryIds.add(subCat._id.toString());
+            subCategories.push({
+              _id: subCat._id,
+              name: subCat.name,
+              slug: subCat.slug,
+              description: subCat.description,
+              thumbnailUrl: subCat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: subCategories });
+  } catch (error) {
+    console.error('Error fetching test series subcategories:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

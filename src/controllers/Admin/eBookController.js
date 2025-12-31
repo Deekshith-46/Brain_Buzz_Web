@@ -1,5 +1,11 @@
 const EBook = require('../../models/EBook/EBook');
+const Category = require('../../models/Course/Category');
+const SubCategory = require('../../models/Course/SubCategory');
+const Language = require('../../models/Course/Language');
 const cloudinary = require('../../config/cloudinary');
+
+// Helper function to escape regex special characters
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|\[\]\\]/g, '\\$&');
 
 const uploadToCloudinary = (fileBuffer, folder, resourceType = 'image') => {
   return new Promise((resolve, reject) => {
@@ -319,6 +325,94 @@ exports.deleteEBook = async (req, res) => {
     return res.status(200).json({ message: 'E-Book deleted successfully' });
   } catch (error) {
     console.error('Error deleting E-Book:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct categories for e-books (admin - shows all e-books regardless of active status)
+exports.getEBookCategories = async (req, res) => {
+  try {
+    // Find e-books (including inactive) and get distinct categories
+    const ebooks = await EBook.find({}).populate('categories', 'name slug description thumbnailUrl');
+
+    // Extract unique categories
+    const categories = [];
+    const categoryIds = new Set();
+    
+    ebooks.forEach(ebook => {
+      if (ebook.categories) {
+        ebook.categories.forEach(cat => {
+          if (!categoryIds.has(cat._id.toString())) {
+            categoryIds.add(cat._id.toString());
+            categories.push({
+              _id: cat._id,
+              name: cat.name,
+              slug: cat.slug,
+              description: cat.description,
+              thumbnailUrl: cat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: categories });
+  } catch (error) {
+    console.error('Error fetching e-book categories:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get distinct subcategories for e-books based on category and language (admin - shows all e-books regardless of active status)
+exports.getEBookSubCategories = async (req, res) => {
+  try {
+    const { category, language, lang } = req.query;
+    
+    const filter = {
+      categories: category
+    };
+
+    // Handle language filter
+    if (language) {
+      filter.languages = language;
+    } else if (lang) {
+      const langDoc = await Language.findOne({
+        $or: [
+          { code: lang.toLowerCase() },
+          { name: { $regex: `^${escapeRegex(lang)}$`, $options: 'i' } },
+        ],
+      });
+      if (langDoc) {
+        filter.languages = langDoc._id;
+      }
+    }
+
+    const ebooks = await EBook.find(filter).populate('subCategories', 'name slug description thumbnailUrl');
+
+    // Extract unique subcategories
+    const subCategories = [];
+    const subCategoryIds = new Set();
+    
+    ebooks.forEach(ebook => {
+      if (ebook.subCategories) {
+        ebook.subCategories.forEach(subCat => {
+          if (!subCategoryIds.has(subCat._id.toString())) {
+            subCategoryIds.add(subCat._id.toString());
+            subCategories.push({
+              _id: subCat._id,
+              name: subCat.name,
+              slug: subCat.slug,
+              description: subCat.description,
+              thumbnailUrl: subCat.thumbnailUrl
+            });
+          }
+        });
+      }
+    });
+
+    return res.status(200).json({ data: subCategories });
+  } catch (error) {
+    console.error('Error fetching e-book subcategories:', error);
     return res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

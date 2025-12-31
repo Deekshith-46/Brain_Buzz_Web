@@ -133,7 +133,7 @@
 
     <script>
         let orderData = null;
-        const apiBaseUrl = 'http://localhost:5000/api';
+        const apiBaseUrl = 'http://localhost:3000/api'; // Updated to match your backend
         let token = localStorage.getItem('jwtToken') || '';
 
         // Initialize token input if exists
@@ -185,33 +185,41 @@
             const courseId = document.getElementById('courseId').value.trim();
             const couponCode = document.getElementById('couponCode').value.trim();
 
-            const items = [];
-            if (selectedType === 'test_series') {
-                if (!testSeriesId) {
-                    alert('Please enter a test series ID');
-                    return;
-                }
-                items.push({ itemType: 'test_series', itemId: testSeriesId });
-            } else {
-                if (!courseId) {
-                    alert('Please enter a course ID');
-                    return;
-                }
-                items.push({ itemType: 'online_course', itemId: courseId });
+            // Validate required fields
+            if (selectedType === 'test_series' && !testSeriesId) {
+                alert('Please enter a test series ID');
+                return;
+            }
+            if (selectedType === 'online_course' && !courseId) {
+                alert('Please enter a course ID');
+                return;
             }
 
             try {
-                const response = await fetch(`${apiBaseUrl}/payment/create-order`, {
+                // Use different endpoints based on item type
+                let endpoint, payload;
+                if (selectedType === 'online_course') {
+                    endpoint = `${apiBaseUrl}/payment/courses/create-order`;
+                    payload = { courseId, couponCode: couponCode || undefined };
+                } else {
+                    endpoint = `${apiBaseUrl}/payment/create-order`;
+                    const items = [{ itemType: 'test_series', itemId: testSeriesId }];
+                    payload = { items, couponCode: couponCode || undefined };
+                }
+
+                console.log('Making request to:', endpoint);
+                console.log('Payload:', payload);
+
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ 
-                        items,
-                        couponCode: couponCode || undefined 
-                    })
+                    body: JSON.stringify(payload)
                 });
+
+                console.log('Response status:', response.status);
 
                 if (response.status === 401) {
                     localStorage.removeItem('jwtToken');
@@ -220,20 +228,30 @@
                     return;
                 }
 
+                // Check if response is JSON or HTML
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const textResponse = await response.text();
+                    console.error('Non-JSON response:', textResponse);
+                    alert('Server returned an unexpected response. Please check the console for details.');
+                    return;
+                }
+
                 const data = await response.json();
                 
-                if (data.success) {
-                    orderData = data.order;
+                if (response.ok && data.success) {
+                    orderData = data.order || data.data; // Handle both response formats
                     document.getElementById('orderResponse').textContent = JSON.stringify(orderData, null, 2);
                     document.getElementById('orderDetails').style.display = 'block';
                     document.getElementById('paymentSection').style.display = 'block';
                     document.getElementById('paymentSection').scrollIntoView({ behavior: 'smooth' });
                 } else {
+                    console.error('API Error:', data);
                     alert('Failed to create order: ' + (data.message || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error creating order:', error);
-                alert('Error creating order. Check console for details.');
+                alert('Error creating order. Check console for details. Error: ' + error.message);
             }
         });
 
@@ -250,13 +268,18 @@
                 return;
             }
 
+            // Updated to handle the correct response format from your API
+            const orderId = orderData.orderId || orderData.id;
+            const amount = orderData.amountInPaise || orderData.amount * 100; // Convert to paise if needed
+            const currency = orderData.currency || 'INR';
+
             const options = {
-                key: "rzp_test_RPLRzNCjuNmGdU",
-                amount: orderData.amountInPaise,
-                currency: orderData.currency,
-                name: "Brain Buzz Test Series",
-                description: "Test Series Purchase",
-                order_id: orderData.id,
+                key: "rzp_test_RPLRzNCjuNmGdU", // Enter your Razorpay key here
+                amount: amount,
+                currency: currency,
+                name: orderData.name || "Brain Buzz",
+                description: orderData.description || "Test Series or Online Course Purchase",
+                order_id: orderId,
                 handler: async function (response) {
                     const paymentResponse = document.getElementById('paymentResponse');
                     paymentResponse.innerHTML = `
@@ -268,7 +291,17 @@
                     `;
 
                     try {
-                        const verifyResponse = await fetch(`${apiBaseUrl}/payment/verify`, {
+                        // Use different verification endpoints based on the original creation endpoint
+                        const selectedType = document.querySelector('input[name="itemType"]:checked').value;
+                        let verifyEndpoint;
+                        if (selectedType === 'online_course') {
+                            verifyEndpoint = `${apiBaseUrl}/payment/courses/verify`;
+                        } else {
+                            verifyEndpoint = `${apiBaseUrl}/payment/verify`;
+                        }
+
+                        // Send the exact parameters that the backend expects
+                        const verifyResponse = await fetch(verifyEndpoint, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -282,7 +315,6 @@
                         });
 
                         if (verifyResponse.status === 401) {
-                            // Token expired or invalid
                             localStorage.removeItem('jwtToken');
                             document.getElementById('tokenStatus').textContent = 'Session expired. Please enter a new token.';
                             document.getElementById('tokenStatus').style.color = 'red';
@@ -297,119 +329,9 @@
                             verificationResponse.innerHTML = `
                                 <div style="color: green;">
                                     <h3>Payment Verified Successfully!</h3>
-                                    <p>Order ID: ${verifyData.orderId}</p>
-                                    <p>Payment ID: ${verifyData.paymentId}</p>
-                                    <p>You now have access to the test series.</p>
-                                </div>
-                            `;
-                        } else {
-                            verificationResponse.innerHTML = `
-                                <div style="color: red;">
-                                    <h3>Verification Failed</h3>
-                                    <p>${verifyData.message || 'Unknown error'}</p>
-                                </div>
-                            `;
-                        }
-                        verificationSection.style.display = 'block';
-                        verificationSection.scrollIntoView({ behavior: 'smooth' });
-                    } catch (error) {
-                        console.error('Error verifying payment:', error);
-                        document.getElementById('verificationResponse').innerHTML = `
-                            <div style="color: red;">
-                                <h3>Error verifying payment</h3>
-                                <p>Check console for details</p>
-                            </div>
-                        `;
-                        document.getElementById('verificationSection').style.display = 'block';
-                    }
-                },
-                prefill: {
-                    name: "Test User",
-                    email: "test@example.com",
-                    contact: "9999999999"
-                },
-                notes: {
-                    address: "Test Address"
-                },
-                theme: {
-                    color: "#4CAF50"
-                }
-            };
-
-            const rzp = new Razorpay(options);
-            rzp.on('payment.failed', function (response) {
-                document.getElementById('paymentResponse').innerHTML = `
-                    <div style="color: red;">
-                        <h3>Payment Failed</h3>
-                        <p>Error: ${response.error.description || 'Unknown error'}</p>
-                        <p>Code: ${response.error.code || 'N/A'}</p>
-                    </div>
-                `;
-            });
-
-            rzp.open();
-        });
-        document.getElementById('payNowBtn').addEventListener('click', () => {
-            if (!orderData) {
-                alert('Please create an order first');
-                return;
-            }
-
-            if (!token) {
-                document.getElementById('tokenStatus').textContent = 'Please enter and save a valid JWT token first';
-                document.getElementById('tokenStatus').style.color = 'red';
-                return;
-            }
-
-            const options = {
-                key: "rzp_test_RPLRzNCjuNmGdU",
-                amount: orderData.amountInPaise,
-                currency: orderData.currency,
-                name: "Brain Buzz",
-                description: "Purchase",
-                order_id: orderData.id,
-                handler: async function (response) {
-                    const paymentResponse = document.getElementById('paymentResponse');
-                    paymentResponse.innerHTML = `
-                        <h3>Payment Successful!</h3>
-                        <p>Payment ID: ${response.razorpay_payment_id}</p>
-                        <p>Order ID: ${response.razorpay_order_id}</p>
-                        <p>Signature: ${response.razorpay_signature}</p>
-                        <p>Verifying payment...</p>
-                    `;
-
-                    try {
-                        const verifyResponse = await fetch(`${apiBaseUrl}/payment/verify`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({
-                                razorpay_order_id: response.razorpay_order_id,
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_signature: response.razorpay_signature
-                            })
-                        });
-
-                        if (verifyResponse.status === 401) {
-                            localStorage.removeItem('jwtToken');
-                            document.getElementById('tokenStatus').textContent = 'Session expired. Please enter a new token.';
-                            document.getElementById('tokenStatus').style.color = 'red';
-                            return;
-                        }
-
-                        const verifyData = await verifyResponse.json();
-                        const verificationSection = document.getElementById('verificationSection');
-                        const verificationResponse = document.getElementById('verificationResponse');
-
-                        if (verifyData.success) {
-                            verificationResponse.innerHTML = `
-                                <div style="color: green;">
-                                    <h3>Payment Verified Successfully!</h3>
-                                    <p>Order ID: ${verifyData.orderId}</p>
-                                    <p>Payment ID: ${verifyData.paymentId}</p>
-                                    <p>Access granted to purchased items.</p>
+                                    <p>Order ID: ${verifyData.data?.orderId || verifyData.orderId}</p>
+                                    <p>Payment ID: ${verifyData.data?.paymentId || verifyData.paymentId}</p>
+                                    <p>You now have access to the purchased item.</p>
                                 </div>
                             `;
                         } else {

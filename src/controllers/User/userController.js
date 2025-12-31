@@ -165,6 +165,77 @@ exports.deleteUserProfile = async (req, res) => {
   }
 };
 
+// Get all user details (profile, purchases, courses, test series, publications, orders)
+exports.getAllUserDetails = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    // Get user profile
+    const userProfile = await User.findById(req.user._id).select('-password');
+    if (!userProfile) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Get all completed purchases for this user
+    const purchases = await Purchase.find({ 
+      user: req.user._id,
+      status: 'completed'
+    });
+        
+    // Extract item IDs by type from purchases
+    const courseIds = [];
+    const testSeriesIds = [];
+    const publicationIds = [];
+        
+    purchases.forEach(purchase => {
+      purchase.items.forEach(item => {
+        if (item.itemType === 'online_course') {
+          courseIds.push(item.itemId);
+        } else if (item.itemType === 'test_series') {
+          testSeriesIds.push(item.itemId);
+        } else if (item.itemType === 'publication') {
+          publicationIds.push(item.itemId);
+        }
+      });
+    });
+        
+    // Fetch actual content based on extracted IDs
+    const courses = await Course.find({ _id: { $in: courseIds } });
+    const testSeries = await TestSeries.find({ _id: { $in: testSeriesIds } });
+    const publications = await Publication.find({ _id: { $in: publicationIds } });
+
+    // Get user's orders (completed purchases)
+    const orders = await Purchase.find({ 
+      user: req.user._id,
+      status: 'completed'
+    }).sort({ createdAt: -1 });
+
+    // Prepare the response
+    // Only include purchased items in the top-level arrays, not in the profile
+    // to avoid data duplication
+    const userDetails = {
+      profile: userProfile,
+      courses: courses,
+      testSeries: testSeries,
+      publications: publications,
+      orders: orders
+    };
+
+    res.json({
+      success: true,
+      data: userDetails
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user details',
+      error: error.message
+    });
+  }
+};
+
 // Get user's purchased courses
 exports.getMyCourses = async (req, res) => {
   try {
