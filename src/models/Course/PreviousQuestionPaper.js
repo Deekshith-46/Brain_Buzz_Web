@@ -55,6 +55,11 @@ const previousQuestionPaperSchema = new mongoose.Schema(
       type: Boolean,
       default: true
     },
+    languageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Language',
+      default: null
+    },
     languages: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Language',

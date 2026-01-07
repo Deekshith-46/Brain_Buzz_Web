@@ -107,7 +107,8 @@ exports.createPYQ = async (req, res) => {
       });
     }
 
-    const paper = await PreviousQuestionPaper.create({
+    // Create the paper with languages array if languageId is provided
+    const paperData = {
       categoryId,
       subCategoryId,
       paperCategory,
@@ -115,10 +116,18 @@ exports.createPYQ = async (req, res) => {
       subjectId: subjectId || null,
       date,
       description,
-      languageId,
       thumbnailUrl,
       fileUrl
-    });
+    };
+    
+    // Add languageId if provided
+    if (languageId) {
+      paperData.languageId = languageId;
+      // Also add to languages array for backward compatibility
+      paperData.languages = [languageId];
+    }
+    
+    const paper = await PreviousQuestionPaper.create(paperData);
 
     res.json({
       success: true,
@@ -144,7 +153,11 @@ exports.updatePYQ = async (req, res) => {
     if (subjectId) updateData.subjectId = subjectId;
     if (date) updateData.date = date;
     if (description) updateData.description = description;
-    if (languageId) updateData.languageId = languageId;
+    if (languageId) {
+      updateData.languageId = languageId;
+      // Also update languages array for consistency
+      updateData.languages = [languageId];
+    }
 
     // Validate languageId if provided
     if (updateData.languageId) {
